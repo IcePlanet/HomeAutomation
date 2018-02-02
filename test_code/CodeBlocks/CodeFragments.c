@@ -45,7 +45,7 @@ int log_message (int level, int detail, const char* message, ...) {
   }
 }
 
-void uq_enqueue(union frame *x, struct *start, struct *end) {
+void uq_enqueue(union frame *x, struct queue_node **start, struct queue_node **end) {
 	struct queue_node* temp =  (struct queue_node*)malloc(sizeof(struct queue_node));
 	temp->queue_data = x; 
 	temp->queue_next = NULL;
@@ -54,7 +54,7 @@ void uq_enqueue(union frame *x, struct *start, struct *end) {
 	*end = temp;
 }
 
-unsigned long uq_dequeue(struct *start, struct *end) {
+unsigned long uq_dequeue(struct queue_node **start, struct queue_node **end) {
 	struct queue_node* temp = *start;
 	unsigned long return_value;
 	if(*start == NULL) { log_message (10,1,"Error in queue processing, out of bounds\n"); return 0; }
@@ -65,17 +65,17 @@ unsigned long uq_dequeue(struct *start, struct *end) {
 	return return_value;
 }
 
-unsigned long uq_item (struct *start, struct *end) {
+unsigned long uq_item (struct queue_node **start, struct queue_node **end) {
 	if(*start == NULL) { log_message (10,1,"Error in queue processing, out of bounds\n"); return 0; }
 	return *start->queue_data;
 }
 
-bool uq_info(struct *start, struct *end) {
+bool uq_info(struct queue_node **start, struct queue_node **end) {
 	if(*start == NULL) { return false; }
 	return true;
 }
 
-void uq_log(struct *start, struct *end) {
+void uq_log(struct queue_node **start, struct queue_node **end) {
 	struct queue_node* temp = *start;
 	int i = 0;
 	log_message (800,1,"Queue elements: ");
@@ -83,7 +83,7 @@ void uq_log(struct *start, struct *end) {
 	log_message (800,0,"NULL (%d)\n",i);
 }
 
-void uq_clean(struct *start, struct *end) {
+void uq_clean(struct queue_node **start, struct queue_node **end) {
 	queue_log ();
 	log_message (800,1,"Queue cleaning ");
 	while (*start != NULL) { dequeue(); log_message (800,1,"."); }
