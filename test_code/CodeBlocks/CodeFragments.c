@@ -99,8 +99,8 @@ void main () {
   log_message (200,0,"Frame %lu (168034817), expected target %c (10) payload 1 %c (4) payload 2 (2) orders %c (1)\n", tmp.frame, tmp.d.target, tmp.d.payload1, tmp.d.payload2, tmp.orders);
   tmp.frame = tmp.frame | 32 ;
   log_message (200,0,"Frame %lu (168034849), expected target %c (10) payload 1 %c (4) payload 2 (2) orders %c (33)\n", tmp.frame, tmp.d.target, tmp.d.payload1, tmp.d.payload2, tmp.orders);
-
-  printf ("Sizeif struct %i and union %i \n",sizeof(struct queue_node), sizeof(struct union frame));
+  printf ("Sizeof long %i  \n",sizeof(unsigned long));
+  printf ("Sizeof struct %i and union %i \n",sizeof(struct queue_node), sizeof(struct union frame));
   uq_log (&queue_front, &queue_rear);
   uq_enqueue (
 }
