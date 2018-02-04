@@ -29,25 +29,25 @@ const unsigned long receive_loop_delay = 3; //delay of one receive loop in milis
 const bool retransfer_bit_set = false; // retransfer bit settings
 const unsigned char retransfer_bit_position = 6; // Location of re-transfer bit
 const unsigned char ack_bit_position = 7; // Location of ack bit
-union frame {
+union Frame {
     unsigned long frame;
     struct {
-        char target;
-        char payload1;
-        char payload2;
-        char order;
+        unsigned char order;
+        unsigned char payload2;
+        unsigned char payload1;
+        unsigned char target;
     } d;
 };
 const unsigned char rx_max_queue_size = 100;
 unsigned char rx_queue_start = 0;
 unsigned char rx_queue_count = 0;
-union frame rx_tmp, rx_last;
-union frame rx_queue [rx_max_queue_size];
+union Frame rx_tmp, rx_last;
+union Frame rx_queue [rx_max_queue_size];
 const unsigned char tx_max_queue_size = 100;
 unsigned char tx_queue_start = 0;
 unsigned char tx_queue_count = 0;
-union frame tx_tmp, tx_last;
-union frame tx_queue [tx_max_queue_size];
+union Frame tx_tmp, tx_last;
+union Frame tx_queue [tx_max_queue_size];
 
 // ENGINES definition
 // For simplification the engine pins are HIGH due to the way how relay board is designed (can be done also with low as default but this is little bit more complicated as the pin_power is common for whole board (2, 4, 6 relays))
@@ -67,10 +67,10 @@ struct engine_control engines [number_of_engines];
 
 // Orders defaults
 bool new_orders = false; // if there are new not yet processeed orders
-unsigned char sleep_lock = 0 // bit field to check if anything is in proogress
-const unsigned char sleep_lock_orders_to_be_processed = 0 // bit position for active orders
-const unsigned char sleep_lock_orders_engine_running = 1 // bit position for running engine
-const unsigned char orders_mask = B00010000 // Mask for orders this system is able to accept, if none of them is set to 1 it is considered as all-stop order
+unsigned char sleep_lock = 0; // bit field to check if anything is in proogress
+const unsigned char sleep_lock_orders_to_be_processed = 0; // bit position for active orders
+const unsigned char sleep_lock_orders_engine_running = 1; // bit position for running engine
+const unsigned char orders_mask = B00010000; // Mask for orders this system is able to accept, if none of them is set to 1 it is considered as all-stop order
 
 // VOLTAGE measure
 unsigned char voltage_input = 0;  // Input voltage for the arduino board
@@ -96,7 +96,7 @@ const unsigned int sleep_during_sleep_lock = 500 + my_id;
 
 const unsigned int size_of_long = sizeof (unsigned long);
 
-bool queue_add (struct frame *a, struct frame *q, unsigned char *start, unsigned char *count, unsigned char max) {
+bool queue_add (union Frame *a, union Frame *q, unsigned char *start, unsigned char *count, unsigned char max) {
   unsigned char new_pos = *start + *count;
   unsigned char i;
   if (new_pos >= max) {
@@ -119,7 +119,7 @@ bool queue_remove (unsigned char *start, unsigned char *count) {
   return true;
 }
 
-bool rx_queue_add (struct frame a) {
+bool rx_queue_add (union Frame a) {
   unsigned char new_pos = rx_queue_start + rx_queue_count;
   unsigned char i;
   if (new_pos >= rx_max_queue_size) {
@@ -171,7 +171,7 @@ void shutdown_radio () {
 bool rf_tx_only (unsigned long to_send_payload) {
   if (to_send_payload > 0) {
     radio.stopListening();
-    radio.write (&to_send_payload, size_of_long));
+    radio.write (&to_send_payload, size_of_long);
     radio.startListening();
   }
 }
@@ -189,20 +189,20 @@ bool rf_trx (unsigned long to_send_payload) {
       if (serial_messages) { Serial.print ("Data to read ready\n"); }
       radio.read( &rx_tmp.frame, size_of_long );             // Get the payload
       receive_time = millis ();
-      // TODO check re-transfer requests here
+      // TODO check re-transfer requests here (maybe after the below if, but can not be as else due to re-transfer of broadcasts)
       if ((rx_tmp.d.target == my_id) || (rx_tmp.d.target == broadcast_id)) { // traffic is for this node
         if (serial_messages) { Serial.print ("RX: "); Serial.print (rx_tmp.frame); Serial.print (" T: "); Serial.println (receive_time); }
         if (bitRead (rx_tmp.frame, ack_bit_position) == 0) { // it is NOT ack message (we do not wait for ack's on client)
           if (serial_messages) { Serial.print (" O: "); Serial.print (rx_tmp.d.order); }
           if (retransfer_bit_set) { bitSet (rx_tmp.frame, retransfer_bit_position); } else { bitClear (rx_tmp.frame, retransfer_bit_position); }
           bitSet (rx_tmp.frame, ack_bit_position); // We always set ack bit to distinguisb later in rx_queue between 0 as order (equals 0) and 0 as result of processing (has ack set)
-	        if (rx_tmp.target == my_id) { rf_tx_only (rx_tmp.frame); if (serial_messages) { Serial.print ("ACK: "); Serial.print (rx_tmp.frame); Serial.print (" T: ");Serial.println (millis ()); } } // Sending ack if it was for me
-          if (rx.tmp.frame != rx_last.frame) { // New data have been received
-            if ((rx_tmp.d.order & orders_mask) = 0) { rx_queue_start = 0; rx_queue_count = 1; rx_queue[rx_queue_start].frame = 0; } // stop all message is represented as 0 in rx_queue and also deletes queue until now (later)
+	        if (rx_tmp.d.target == my_id) { rf_tx_only (rx_tmp.frame); if (serial_messages) { Serial.print ("ACK: "); Serial.print (rx_tmp.frame); Serial.print (" T: ");Serial.println (millis ()); } } // Sending ack if it was for me
+          if (rx_tmp.frame != rx_last.frame) { // New data have been received
+            if ((rx_tmp.d.order & orders_mask) == 0) { rx_queue_start = 0; rx_queue_count = 1; rx_queue[rx_queue_start].frame = 0; } // stop all message is represented as 0 in rx_queue and also deletes queue until now (later)
             else { rx_queue_add (rx_tmp); }
             bitSet (sleep_lock,sleep_lock_orders_to_be_processed);
-            if (serial_messages) { Serial.print (" Q val:"); Serial.print (rx_queue [rx_queue_start + rx_queue_count - 1]); Serial.print (" Q start:"); Serial.print (rx_queue_start); Serial.print (" Q count: "); Serial.print (rx_queue_count); }
-	    rx_last = rx_tmp
+            if (serial_messages) { Serial.print (" Q val:"); Serial.print (rx_queue [rx_queue_start + rx_queue_count - 1].frame); Serial.print (" Q start:"); Serial.print (rx_queue_start); Serial.print (" Q count: "); Serial.print (rx_queue_count); }
+	    rx_last = rx_tmp ;
    	  } // New data have been received
         } // Message is NOT ack
         Serial.println (".");
@@ -346,7 +346,7 @@ unsigned long voltage_read (unsigned int internal, unsigned int voltage, unsigne
     if (light_sensor_power_pin != 0)  { digitalWrite (light_sensor_power_pin, LOW); pinMode (light_sensor_power_pin, INPUT); }
     measuredVoltage = ADCL; // ADCH is updated only after ADCL is read
     measuredVoltage |= ADCH << 8;
-    voltage_light = ((measuredVoltage * 250L) / 1024L) & 0x000000ffUL) ; // Conversion of light sensor, only represents relative value to input voltage where 250 is equal to input voltage
+    voltage_light = (((measuredVoltage * 250L) / 1024L) & 0x000000ffUL) ; // Conversion of light sensor, only represents relative value to input voltage where 250 is equal to input voltage
     if (serial_messages) { Serial.print (" L("); Serial.print (channel & 15); Serial.print ("): "); Serial.print (measuredVoltage); Serial.print (" / "); measuredVoltage = (measuredVoltage * refmv) / 1024L; Serial.print (measuredVoltage); Serial.print (" / "); Serial.print (round (100*measuredVoltage/refmv)); Serial.print (" p: "); Serial.print (voltage_light); }
   }
   if (serial_messages) { Serial.println ("."); }
@@ -354,12 +354,12 @@ unsigned long voltage_read (unsigned int internal, unsigned int voltage, unsigne
 } // readVoltage
 
 void voltage_send (unsigned char p1, unsigned char p2) {
-  union frame tx_t ;
+  union Frame tx_t ;
   tx_t.frame = 0;
   tx_t.d.target = server_id;
   tx_t.d.payload1 = p1;
   tx_t.d.payload2 = p2;
-  bitSet (tx.t.d.orders,voltage_orders_bit_position);
+  bitSet (tx_t.d.order,voltage_orders_bit_position);
   queue_add (&tx_t, tx_queue, &tx_queue_start, &tx_queue_count, tx_max_queue_size);
 }
 
@@ -375,9 +375,9 @@ void process_orders () {
     if (serial_messages) { Serial.println (" STOPPED."); }
     return ;
   } // All stop message received
-  if (bitRead (rx_queue [rx_queue_start].d.orders,engine_orders_bit_position) == 1 )
+  if (bitRead (rx_queue [rx_queue_start].d.order,engine_orders_bit_position) == 1 )
   { // Engine orders received
-    if (serial_messages) { Serial.print ("ENGINE orders: "); Serial.print (rx_queue [rx_queue_start].d.orders); Serial.print (" P1: "); Serial.print (rx_queue [rx_queue_start].d.payload1); Serial.print (" P2: "); Serial.print (rx_queue [rx_queue_start].d.payload2); }
+    if (serial_messages) { Serial.print ("ENGINE orders: "); Serial.print (rx_queue [rx_queue_start].d.order); Serial.print (" P1: "); Serial.print (rx_queue [rx_queue_start].d.payload1); Serial.print (" P2: "); Serial.print (rx_queue [rx_queue_start].d.payload2); }
     if ((rx_queue [rx_queue_start].d.payload1 == 0) && (rx_queue [rx_queue_start].d.payload2 == 0))
       { 
         if (serial_messages) { Serial.print (" all stop"); }
@@ -388,10 +388,10 @@ void process_orders () {
         if (serial_messages) { Serial.print (" change engine: "); Serial.print (rx_queue [rx_queue_start].d.payload1-1); Serial.print (" to: "); Serial.print (rx_queue [rx_queue_start].d.payload2); }
         engine_change (rx_queue [rx_queue_start].d.payload1-1, rx_queue [rx_queue_start].d.payload2, true);
       } // Change engines
-    bitClear (rx_queue [rx_queue_start].d.orders,engine_orders_bit_position);
+    bitClear (rx_queue [rx_queue_start].d.order,engine_orders_bit_position);
     if (serial_messages) { Serial.print (" Done"); }
   } // Engine orders received
-  if ((rx_queue [rx_queue_start].d.orders & orders_mask) == 0) { // all orders understood by this client processed
+  if ((rx_queue [rx_queue_start].d.order & orders_mask) == 0) { // all orders understood by this client processed
     rx_queue_remove ();
   } // all orders understood by this client processed
   if (rx_queue_count < 1) { bitClear(sleep_lock,sleep_lock_orders_to_be_processed); if (serial_messages) { Serial.print (" Q: "); Serial.print (rx_queue_count); Serial.print (" empty"); } }

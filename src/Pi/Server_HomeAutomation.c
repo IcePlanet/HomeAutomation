@@ -64,13 +64,13 @@ const unsigned char broadcast_id = 255;
 bool radio_initialized=false; //Identifies if radio.begin was done
 bool radio_up=false; //Identifies if radio is powered up
 const uint8_t pipes[][6] = {"1Node","2Node"};
-union frame {
+union Frame {
     unsigned long frame;
     struct {
-        char target;
-        char payload1;
-        char payload2;
-        char order;
+        unsigned char order;
+        unsigned char payload2;
+        unsigned char payload1;
+        unsigned char target;
     } d;
 };
 const unsigned char ack_bit_position = 7; // Location of ack bit
@@ -84,10 +84,10 @@ const unsigned int send_ack_received_delay = 1000; // delay after ack was receiv
 unsigned int sleep_time = send_loop_cycle_wait * 1000; // technical calculation
 
 // PAYLOAD MASKS
-const unsigned char mask_retransfer_send = B01000000;
-const unsigned char mask_ack = B10000000;
-const unsigned char mask_engines = B00010000;
-const unsigned char mask_voltage = B00100000;
+const unsigned char mask_retransfer_send = 0b01000000;
+const unsigned char mask_ack = 0b10000000;
+const unsigned char mask_engines = 0b00010000;
+const unsigned char mask_voltage = 0b00100000;
 const unsigned long mask_long_ack = 128;
 const unsigned long mask_long_retransfer = mask_retransfer_send;
 
@@ -96,9 +96,11 @@ const int log_level = 500; //Log level, the lower number the more priority log, 
 const char* timeformat = "%Y%m%d%H%M%S";
 
 // QUEUE
-struct queue_node { unsigned long queue_data; struct queue_node* queue_next; };
+struct queue_node { union Frame f; struct queue_node* queue_next; };
 struct queue_node* queue_front = NULL;
 struct queue_node* queue_rear = NULL;
+struct QueueFrames { queue_node* start; queue_node* end; bool ok; union Frame t; } send_queue ;
+union Frame empty_frame; // Do not forget to define as first item in the code !
 const int max_queue_items_processed = 3; // Maximal number of items procesed before checking file again
 
 // FILE FROM OPEN HAB
@@ -126,9 +128,67 @@ int log_message (int level, int detail, const char* message, ...) {
   }
 }
 
+bool uq_init (struct QueueFrames *x) {
+	(*x).start = (*x).end = NULL;
+  (*x).ok = true ;
+  return (*x).ok ;
+}
+
+bool uq_enqueue (struct QueueFrames *x) {
+	struct queue_node* temp =  (struct queue_node*)malloc(sizeof(struct queue_node));
+	(*temp).f = (*x).t; 
+	temp->queue_next = NULL;
+  (*x).ok = true;
+	if((*x).start == NULL /*&& queue_rear == NULL*/){ (*x).start = (*x).end = temp; return (*x).ok;}
+	(*(*x).end).queue_next = temp;
+	(*x).end = temp;
+  return (*x).ok ;
+}
+
+bool uq_dequeue (struct QueueFrames *x) {
+  struct queue_node* temp;
+  (*x).t = empty_frame;
+	if((*x).start == NULL) { log_message (10,1,"Error in queue processing, out of bounds\n"); (*x).ok = false; return (*x).ok; }
+  (*x).t = (*(*x).start).f ;
+  temp = (*x).start;
+	if((*x).start == (*x).end) { (*x).start = (*x).end = NULL;}
+	else { (*x).start = (*(*x).start).queue_next;	}
+	free(temp);
+  (*x).ok = true;
+	return (*x).ok;
+}
+
+bool uq_item (struct QueueFrames *x) {
+	if((*x).start == NULL) { log_message (10,1,"Error in queue processing, out of bounds\n"); (*x).ok = false; return (*x).ok; }
+  (*x).t = (*(*x).start).f ;
+  (*x).ok = true;
+	return (*x).ok;
+}
+
+bool uq_info (struct QueueFrames *x) {
+	if((*x).start == NULL) { return false; }
+	return true;
+}
+
+void uq_log (struct QueueFrames *x) {
+  struct queue_node* temp = (*x).start;
+	int i = 0;
+	log_message (800,1,"Queue elements: ");
+	while(temp != NULL) { log_message (800,0,"%lu -> ",temp->f.frame);	temp = temp->queue_next; i++; }
+	log_message (800,0,"NULL (%d)\n",i);
+}
+
+void uq_clean (struct QueueFrames *x) {
+	uq_log (x);
+	log_message (800,1,"Queue cleaning ");
+	while ((*x).start != NULL) { uq_dequeue(x); log_message (800,1,"."); }
+	log_message (800,1," cleaned\n");
+	uq_log (x);
+}
+
 void enqueue(unsigned long x) {
 	struct queue_node* temp =  (struct queue_node*)malloc(sizeof(struct queue_node));
-	temp->queue_data = x; 
+	(*temp).f.frame = x; 
 	temp->queue_next = NULL;
 	if(queue_front == NULL /*&& queue_rear == NULL*/){ queue_front = queue_rear = temp; return;}
 	queue_rear->queue_next = temp;
@@ -141,14 +201,14 @@ unsigned long dequeue() {
 	if(queue_front == NULL) { log_message (10,1,"Error in queue processing, out of bounds\n"); return 0; }
 	if(queue_front == queue_rear) { queue_front = queue_rear = NULL;}
 	else { queue_front = queue_front->queue_next;	}
-	return_value = temp->queue_data;
+	return_value = (*temp).f.frame;
 	free(temp);
 	return return_value;
 }
 
 unsigned long queue_item() {
 	if(queue_front == NULL) { log_message (10,1,"Error in queue processing, out of bounds\n"); return 0; }
-	return queue_front->queue_data;
+	return (*queue_front).f.frame;
 }
 
 bool queue_info() {
@@ -160,7 +220,7 @@ void queue_log() {
 	struct queue_node* temp = queue_front;
 	int i = 0;
 	log_message (800,1,"Queue elements: ");
-	while(temp != NULL) { log_message (800,0,"%lu -> ",temp->queue_data);	temp = temp->queue_next; i++; }
+	while(temp != NULL) { log_message (800,0,"%lu -> ",(*temp).f.frame);	temp = temp->queue_next; i++; }
 	log_message (800,0,"NULL (%d)\n",i);
 }
 
@@ -173,9 +233,9 @@ void queue_clean() {
 }
 
 void decodeMessage (unsigned long to_decode) {
-  union frame t;
+  union Frame t;
   t.frame = to_decode;
-  if ((t.d.orders & mask_engines) != 0) { // Voltages message
+  if ((t.d.order & mask_engines) != 0) { // Voltages message
     log_message (100,1,"D: %lu decoded as %u (p1) and %u (p2) \n",to_decode,t.d.payload1, t.d.payload2);
   }  // Voltages message
   else {log_message (300,1,"Decoder %lu dropped as unknown\n",to_decode);}
@@ -266,7 +326,7 @@ int read_queue_from_file () {
   int destination;
   int engine;
   int order;
-  union frame tmp_msg
+  union Frame tmp_msg ;
   //fist check existence of file
   if (0 != access(file_queue_openhab, 0)) { log_message (600,1,"File %s did not exists, no queue read\n",file_queue_openhab); return 1;} 
   //block file for processing
@@ -280,11 +340,11 @@ int read_queue_from_file () {
     if (fscanf (queue_file, "%d %d", &destination, &engine, &order) < 3) {log_message (600,1,"File %s read %i was not successfull, less than 2 required items read\n",file_queue_process,i); continue;};
     log_message (700,1," read destination %i engine %i order %i, file end: %s\n",destination, engine, order, feof (queue_file) ? "true" : "false");
     log_message (600,1,"File %s read %i set of data %i %i\n",file_queue_process,i,destination, order);
-    if ((destination == 0 ) || (engine == 0)) 
+    if ((destination == 0 ) || (engine == 0)) // stop all are processed immediately
     { // stop all
       tmp_msg.d.target = broadcast_id;
       tmp_msg.d.payload1 = tmp_msg.d.payload2 = 0 ;
-      tmp_msg.d.orders = ( mask_engines || mask_retransfer_send);
+      tmp_msg.d.order = ( mask_engines || mask_retransfer_send);
       send_msg (tmp_msg.frame);
       queue_clean ();
       remove (file_queue_openhab);
@@ -293,8 +353,8 @@ int read_queue_from_file () {
     } // end of 0 - STOP ALL
     tmp_msg.d.target = destination;
     tmp_msg.d.payload1 = engine;
-    tmp_msg.d.payload2 = orders;
-    tmp_msg.d.orders = ( mask_engines || mask_retransfer_send);
+    tmp_msg.d.payload2 = order;
+    tmp_msg.d.order = ( mask_engines || mask_retransfer_send);
     enqueue (tmp_msg.frame);
     log_message (700,1," - After enqueue file end is: %s\n", feof (queue_file) ? "true" : "false");
   } // end of while reading queue file
@@ -313,6 +373,8 @@ int main(int argc, char** argv) {
   
   log_message (10,1,"START SERVER FOR RF24\n");
 
+  empty_frame.frame = 0;
+  
   start_radio ();
 
   while (running)
