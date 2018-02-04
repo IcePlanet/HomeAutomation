@@ -84,7 +84,8 @@ const unsigned int send_ack_received_delay = 1000; // delay after ack was receiv
 unsigned int sleep_time = send_loop_cycle_wait * 1000; // technical calculation
 
 // PAYLOAD MASKS
-const unsigned char mask_retransfer_send = 0b01000000;
+// const unsigned char mask_retransfer_send = 0b01000000;
+const unsigned char mask_retransfer_send = 0b00000000;
 const unsigned char mask_ack = 0b10000000;
 const unsigned char mask_engines = 0b00010000;
 const unsigned char mask_voltage = 0b00100000;
@@ -235,7 +236,7 @@ void queue_clean() {
 void decodeMessage (unsigned long to_decode) {
   union Frame t;
   t.frame = to_decode;
-  if ((t.d.order & mask_engines) != 0) { // Voltages message
+  if ((t.d.order & mask_voltage) != 0) { // Voltages message
     log_message (100,1,"D: %lu decoded as %u (p1) and %u (p2) \n",to_decode,t.d.payload1, t.d.payload2);
   }  // Voltages message
   else {log_message (300,1,"Decoder %lu dropped as unknown\n",to_decode);}
@@ -303,12 +304,13 @@ unsigned long receive_msg (unsigned int receive_loops, unsigned long waiting_for
   unsigned int i = 1;
   unsigned long received = 0;
   log_message (800,1,"Receive loop started %u executions\n",receive_loops);
-  radio.startListening ();
+//  radio.startListening ();
   for (i = 0; i < receive_loops; i++)
   {
       if (!radio.available ()) {usleep (receive_loop_cycle_wait);};
       while (radio.available ()) {
       radio.read (&received,sizeof (unsigned long));
+      received = received | mask_long_retransfer;
       log_message (300,2,"Received %lu in loop %u\n",received,i);
       if ((received == waiting_for) && (waiting_for != 0))
         {return (received);}
@@ -337,14 +339,14 @@ int read_queue_from_file () {
   {
     i++;
     log_message (700,1," - Loop %i "); 
-    if (fscanf (queue_file, "%d %d", &destination, &engine, &order) < 3) {log_message (600,1,"File %s read %i was not successfull, less than 2 required items read\n",file_queue_process,i); continue;};
+    if (fscanf (queue_file, "%d %d %d", &destination, &engine, &order) < 3) {log_message (600,1,"File %s read %i was not successful, less than 2 required items read\n",file_queue_process,i); continue;};
     log_message (700,1," read destination %i engine %i order %i, file end: %s\n",destination, engine, order, feof (queue_file) ? "true" : "false");
     log_message (600,1,"File %s read %i set of data %i %i\n",file_queue_process,i,destination, order);
     if ((destination == 0 ) || (engine == 0)) // stop all are processed immediately
     { // stop all
       tmp_msg.d.target = broadcast_id;
       tmp_msg.d.payload1 = tmp_msg.d.payload2 = 0 ;
-      tmp_msg.d.order = ( mask_engines || mask_retransfer_send);
+      tmp_msg.d.order = ( mask_engines | mask_retransfer_send);
       send_msg (tmp_msg.frame);
       queue_clean ();
       remove (file_queue_openhab);
@@ -354,7 +356,7 @@ int read_queue_from_file () {
     tmp_msg.d.target = destination;
     tmp_msg.d.payload1 = engine;
     tmp_msg.d.payload2 = order;
-    tmp_msg.d.order = ( mask_engines || mask_retransfer_send);
+    tmp_msg.d.order = ( mask_engines | mask_retransfer_send);
     enqueue (tmp_msg.frame);
     log_message (700,1," - After enqueue file end is: %s\n", feof (queue_file) ? "true" : "false");
   } // end of while reading queue file
@@ -376,7 +378,8 @@ int main(int argc, char** argv) {
   empty_frame.frame = 0;
   
   start_radio ();
-
+  log_message (100,1,"Radio started\n");
+  
   while (running)
   {
     read_queue_from_file ();
@@ -390,7 +393,7 @@ int main(int argc, char** argv) {
     } // queue there
     if (should_sleep) {usleep (file_read_delay);} // sleeping before next queue check
     should_sleep = true;
-    receive_msg (1000,0);
+    receive_msg (300,0);
   } //main while loop
   stop_radio ();
 } //main end

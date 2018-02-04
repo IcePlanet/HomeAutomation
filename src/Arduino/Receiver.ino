@@ -38,12 +38,12 @@ union Frame {
         unsigned char target;
     } d;
 };
-const unsigned char rx_max_queue_size = 100;
+const unsigned char rx_max_queue_size = 10;
 unsigned char rx_queue_start = 0;
 unsigned char rx_queue_count = 0;
 union Frame rx_tmp, rx_last;
 union Frame rx_queue [rx_max_queue_size];
-const unsigned char tx_max_queue_size = 100;
+const unsigned char tx_max_queue_size = 10;
 unsigned char tx_queue_start = 0;
 unsigned char tx_queue_count = 0;
 union Frame tx_tmp, tx_last;
@@ -74,8 +74,11 @@ const unsigned char orders_mask = B00010000; // Mask for orders this system is a
 
 // VOLTAGE measure
 unsigned char voltage_input = 0;  // Input voltage for the arduino board
+unsigned long voltage_tmp_input = 0;  // Input voltage for the arduino board
 unsigned char voltage_measure = 0;  // Voltage measure (up to 1.1V)
+unsigned long voltage_tmp_measure = 0;  // Voltage measure (up to 1.1V)
 unsigned char voltage_light = 0; // Voltage measure with light sensor
+unsigned long voltage_tmp_light = 0; // Voltage measure with light sensor
 const unsigned char voltage_orders_bit_position = 5; // Position of voltage bit
 const unsigned long v_in_resistor = 47000; //multiplication removed
 const unsigned long v_gnd_resistor = 8200; //multiplication removed
@@ -83,15 +86,15 @@ const unsigned char v_measure_pin = 1;
 const unsigned char v_measure_gnd = 10;
 const unsigned char delay_before_v_measure = 7;
 const unsigned char light_sensor_power_pin = 0;
-const unsigned char voltage_loops_read = 9; // read voltage each X loops (if set to 0 not executed)
-const unsigned char voltage_loops_send = 9; // send voltage each X loops, but not read, always mus tbe read by the voltage read (if set to 0 not executed)
+const unsigned char voltage_loops_read = 1; // read voltage each X loops (if set to 0 not executed)
+const unsigned char voltage_loops_send = 1; // send voltage each X loops, but not read, always mus tbe read by the voltage read (if set to 0 not executed)
 const unsigned char voltage_turn_on_external = 50;  // Treshold when to start external power source
 const unsigned char voltage_turn_off_external = 240; // Treshold when to stop external power source
 unsigned char v_read = 0; // voltage counter
 unsigned char v_send = 0; // voltage counter
 
 // Sleeping cycles in main loop
-const unsigned int sleep_after_deep_sleep = 50;
+const unsigned int sleep_after_deep_sleep = 50; // in ms normally cca 50
 const unsigned int sleep_during_sleep_lock = 500 + my_id;
 
 const unsigned int size_of_long = sizeof (unsigned long);
@@ -122,17 +125,17 @@ bool queue_remove (unsigned char *start, unsigned char *count) {
 bool rx_queue_add (union Frame a) {
   unsigned char new_pos = rx_queue_start + rx_queue_count;
   unsigned char i;
-  if (new_pos >= rx_max_queue_size) {
+  if (new_pos >= rx_max_queue_size) { 
     if (rx_queue_start > 0) { // Can shift queue
       for (i = 0; i < rx_queue_count; i++) { rx_queue [i] = rx_queue [i+rx_queue_start]; }
       rx_queue_start = 0;
       new_pos = rx_queue_start + rx_queue_count;
     } // Can shift queue
     else { return false; } // can not add
+  }
   rx_queue [new_pos] = a;
   rx_queue_count += 1;
   return true;
-  }
 }
 
 bool rx_queue_remove () {
@@ -155,7 +158,7 @@ void init_radio () {
   radio.openReadingPipe(1, addresses[0]);
   radio.startListening ();
   radio_status = true;
-  if (serial_messages) { Serial.print ("Radio powered up, on "); Serial.print (millis ()); Serial.println (" details follow: "); radio.printDetails (); }
+//  if (serial_messages) { Serial.print ("Radio powered up, on "); Serial.print (millis ()); Serial.println (" details follow: "); radio.printDetails (); }
 }
 
 void shutdown_radio () {
@@ -169,11 +172,17 @@ void shutdown_radio () {
 }
 
 bool rf_tx_only (unsigned long to_send_payload) {
+  if (serial_messages) { Serial.print (" Send start "); Serial.print (to_send_payload); }
   if (to_send_payload > 0) {
-    radio.stopListening();
+    init_radio ();
+    radio.stopListening ();
+//    if (serial_messages) { Serial.print (" stop listening "); }
     radio.write (&to_send_payload, size_of_long);
+//    if (serial_messages) { Serial.print (" S: "); Serial.print (to_send_payload); }
     radio.startListening();
+//    if (serial_messages) { Serial.print (" start listening "); }
   }
+  if (serial_messages) { Serial.print (" Send end "); }
 }
   
 bool rf_trx (unsigned long to_send_payload) {
@@ -186,24 +195,25 @@ bool rf_trx (unsigned long to_send_payload) {
   {
     i++;
     while (radio.available()) {                                   // While there is data ready
-      if (serial_messages) { Serial.print ("Data to read ready\n"); }
+//      if (serial_messages) { Serial.print ("Data to read ready"); }
       radio.read( &rx_tmp.frame, size_of_long );             // Get the payload
       receive_time = millis ();
       // TODO check re-transfer requests here (maybe after the below if, but can not be as else due to re-transfer of broadcasts)
       if ((rx_tmp.d.target == my_id) || (rx_tmp.d.target == broadcast_id)) { // traffic is for this node
-        if (serial_messages) { Serial.print ("RX: "); Serial.print (rx_tmp.frame); Serial.print (" T: "); Serial.println (receive_time); }
+        if (serial_messages) { Serial.print ("RX: "); Serial.print (rx_tmp.frame); Serial.print (" T: "); Serial.print (receive_time); }
         if (bitRead (rx_tmp.frame, ack_bit_position) == 0) { // it is NOT ack message (we do not wait for ack's on client)
           if (serial_messages) { Serial.print (" O: "); Serial.print (rx_tmp.d.order); }
           if (retransfer_bit_set) { bitSet (rx_tmp.frame, retransfer_bit_position); } else { bitClear (rx_tmp.frame, retransfer_bit_position); }
           bitSet (rx_tmp.frame, ack_bit_position); // We always set ack bit to distinguisb later in rx_queue between 0 as order (equals 0) and 0 as result of processing (has ack set)
-	        if (rx_tmp.d.target == my_id) { rf_tx_only (rx_tmp.frame); if (serial_messages) { Serial.print ("ACK: "); Serial.print (rx_tmp.frame); Serial.print (" T: ");Serial.println (millis ()); } } // Sending ack if it was for me
+	        if (serial_messages) { Serial.print (" Ret+Ack Set "); Serial.print (rx_tmp.frame);}
+	        if (rx_tmp.d.target == my_id) { rf_tx_only (rx_tmp.frame); if (serial_messages) { Serial.print (" ACK: "); Serial.print (rx_tmp.frame); Serial.print (" T: ");Serial.print (millis ()); } } // Sending ack if it was for me
           if (rx_tmp.frame != rx_last.frame) { // New data have been received
-            if ((rx_tmp.d.order & orders_mask) == 0) { rx_queue_start = 0; rx_queue_count = 1; rx_queue[rx_queue_start].frame = 0; } // stop all message is represented as 0 in rx_queue and also deletes queue until now (later)
-            else { rx_queue_add (rx_tmp); }
+            if ((rx_tmp.d.order & orders_mask) == 0) { rx_queue_start = 0; rx_queue_count = 1; rx_queue[rx_queue_start].frame = 0; if (serial_messages) { Serial.print (" STOP ALL "); } } // stop all message is represented as 0 in rx_queue and also deletes queue until now (later)
+            else { rx_queue_add (rx_tmp); if (serial_messages) { Serial.print (" Q+"); } }
             bitSet (sleep_lock,sleep_lock_orders_to_be_processed);
-            if (serial_messages) { Serial.print (" Q val:"); Serial.print (rx_queue [rx_queue_start + rx_queue_count - 1].frame); Serial.print (" Q start:"); Serial.print (rx_queue_start); Serial.print (" Q count: "); Serial.print (rx_queue_count); }
-	    rx_last = rx_tmp ;
-   	  } // New data have been received
+//            if (serial_messages) { Serial.print (" Q val:"); Serial.print (rx_queue [rx_queue_start + rx_queue_count - 1].frame); Serial.print (" Q start:"); Serial.print (rx_queue_start); Serial.print (" Q count: "); Serial.print (rx_queue_count); }
+	          rx_last = rx_tmp ;
+   	      } // New data have been received
         } // Message is NOT ack
         Serial.println (".");
       } // Traffic is for this node
@@ -318,7 +328,9 @@ unsigned long voltage_read (unsigned int internal, unsigned int voltage, unsigne
     while (bit_is_set(ADCSRA, ADSC)); // Wail for ADSC to become 0
     refVoltage = ADCL; // ADCH is updated only after ADCL is read
     refVoltage |= ADCH << 8;
-    voltage_input =  (((1100L * 1024L * 250L) / (5000L * refVoltage)) & 0x000000ffUL) ; // Conversion to range 0 - 255 where 250 = 5V
+    voltage_tmp_input = ((1100L * 1024L) / (refVoltage));
+    voltage_tmp_input = (voltage_tmp_input * 250L) / 5000L ;
+    if (voltage_tmp_input > 255) { voltage_input = 255; } else {voltage_input = voltage_tmp_input; }
     if (serial_messages) { refmv = 1126400L / refVoltage; Serial.print (" R: "); Serial.print (refVoltage); Serial.print (" / "); Serial.print (refmv); Serial.print (" p: "); Serial.print (voltage_input); }
   } // internal voltage measure
   if (voltage != 0) {
@@ -331,7 +343,11 @@ unsigned long voltage_read (unsigned int internal, unsigned int voltage, unsigne
     while (bit_is_set(ADCSRA, ADSC)); // Wail for ADSC to become 0
     measuredVoltage = ADCL; // ADCH is updated only after ADCL is read
     measuredVoltage |= ADCH << 8;
-    voltage_measure =  (((measuredVoltage * 1100L * (v_in_resistor + v_gnd_resistor) * 250L) / (1024L * v_in_resistor * 1100L)) & 0x000000ffUL) ;// Conversion of external voltage measure where 250 = 1.1V
+//    voltage_measure =  (((measuredVoltage * 1100L * (v_in_resistor + v_gnd_resistor) * 250L) / (1024L * v_gnd_resistor * 5000L)) & 0x000000ffUL) ;// Conversion of external voltage measure where 250 = 1.1V
+    voltage_tmp_measure =  (measuredVoltage * 1100L) / 1024L;
+    voltage_tmp_measure =  (voltage_tmp_measure * (v_in_resistor + v_gnd_resistor)) / v_gnd_resistor;
+    voltage_tmp_measure =  (voltage_tmp_measure * 250L) / 5000L;
+    if (voltage_tmp_measure > 255) { voltage_measure = 255; } else {voltage_measure = voltage_tmp_measure; }
     if (serial_messages) { Serial.print (" M("); Serial.print (channel & 15); Serial.print ("): "); Serial.print (measuredVoltage); Serial.print (" / "); measuredVoltage = (measuredVoltage * 1100L) / 1024L; Serial.print (measuredVoltage); Serial.print (" / "); measuredVoltage = (measuredVoltage * (v_in_resistor + v_gnd_resistor)) / v_gnd_resistor; Serial.print (measuredVoltage); Serial.print (" p: "); Serial.print (voltage_measure); }
   }
   if (light != 0) {
@@ -346,7 +362,8 @@ unsigned long voltage_read (unsigned int internal, unsigned int voltage, unsigne
     if (light_sensor_power_pin != 0)  { digitalWrite (light_sensor_power_pin, LOW); pinMode (light_sensor_power_pin, INPUT); }
     measuredVoltage = ADCL; // ADCH is updated only after ADCL is read
     measuredVoltage |= ADCH << 8;
-    voltage_light = (((measuredVoltage * 250L) / 1024L) & 0x000000ffUL) ; // Conversion of light sensor, only represents relative value to input voltage where 250 is equal to input voltage
+    voltage_tmp_light = (((measuredVoltage * 250L) / 1024L)) ; // Conversion of light sensor, only represents relative value to input voltage where 250 is equal to input voltage
+    if (voltage_tmp_light > 255) { voltage_light = 255; } else {voltage_light = voltage_tmp_light; }
     if (serial_messages) { Serial.print (" L("); Serial.print (channel & 15); Serial.print ("): "); Serial.print (measuredVoltage); Serial.print (" / "); measuredVoltage = (measuredVoltage * refmv) / 1024L; Serial.print (measuredVoltage); Serial.print (" / "); Serial.print (round (100*measuredVoltage/refmv)); Serial.print (" p: "); Serial.print (voltage_light); }
   }
   if (serial_messages) { Serial.println ("."); }
@@ -360,7 +377,7 @@ void voltage_send (unsigned char p1, unsigned char p2) {
   tx_t.d.payload1 = p1;
   tx_t.d.payload2 = p2;
   bitSet (tx_t.d.order,voltage_orders_bit_position);
-  queue_add (&tx_t, tx_queue, &tx_queue_start, &tx_queue_count, tx_max_queue_size);
+  rf_tx_only (tx_t.frame);
 }
 
 void process_orders () {
@@ -377,7 +394,7 @@ void process_orders () {
   } // All stop message received
   if (bitRead (rx_queue [rx_queue_start].d.order,engine_orders_bit_position) == 1 )
   { // Engine orders received
-    if (serial_messages) { Serial.print ("ENGINE orders: "); Serial.print (rx_queue [rx_queue_start].d.order); Serial.print (" P1: "); Serial.print (rx_queue [rx_queue_start].d.payload1); Serial.print (" P2: "); Serial.print (rx_queue [rx_queue_start].d.payload2); }
+    if (serial_messages) { Serial.print ("ENGINE: "); Serial.print (rx_queue [rx_queue_start].d.order); Serial.print (" P1: "); Serial.print (rx_queue [rx_queue_start].d.payload1); Serial.print (" P2: "); Serial.print (rx_queue [rx_queue_start].d.payload2); }
     if ((rx_queue [rx_queue_start].d.payload1 == 0) && (rx_queue [rx_queue_start].d.payload2 == 0))
       { 
         if (serial_messages) { Serial.print (" all stop"); }
@@ -385,7 +402,7 @@ void process_orders () {
       }
     else
       { // Change engines
-        if (serial_messages) { Serial.print (" change engine: "); Serial.print (rx_queue [rx_queue_start].d.payload1-1); Serial.print (" to: "); Serial.print (rx_queue [rx_queue_start].d.payload2); }
+        if (serial_messages) { Serial.print (" E: "); Serial.print (rx_queue [rx_queue_start].d.payload1-1); Serial.print (" to: "); Serial.print (rx_queue [rx_queue_start].d.payload2); }
         engine_change (rx_queue [rx_queue_start].d.payload1-1, rx_queue [rx_queue_start].d.payload2, true);
       } // Change engines
     bitClear (rx_queue [rx_queue_start].d.order,engine_orders_bit_position);

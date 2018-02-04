@@ -6,7 +6,52 @@
 #include <time.h>
 #include "/usr/local/include/RF24/RF24.h"
 #include <stdarg.h>
+#include "/usr/local/include/RF24/RF24.h"
 
+ RF24 radio(RPI_V2_GPIO_P1_22, BCM2835_SPI_CS0, BCM2835_SPI_SPEED_8MHZ);
+// GPIO pin numbers version
+// RF24 radio(RPI_V2_GPIO_P1_25, BCM2835_SPI_CS0, BCM2835_SPI_SPEED_8MHZ);
+
+/*
+ * Real connection is:
+ * PIN #     GPIO     ALT NAME   NRF PIN     NRF NAME
+ * 20        NONE     GROUND     1           GND 
+ * 17        NONE     3.3 V      2           VCC
+ * 22        25                  3           CE
+ * 24        8        SPI0_CE0_N 4           CSN
+ * 23        11       SPI0_SCLK  5           SCK
+ * 19        10       SPI0_MOSI  6           MOSI
+ * 21        9        SPI0_MISO  7           MISO
+ */
+
+/* ORDERS DEFINITION
+ *  0 (0000) - all stop
+ *  1 (0001) - Voltage (in payload)
+ *  2 (0010) - Temp (in payload)
+ *  3 (0011) - Rain (in payload)
+ *  4 (0100) - engine 1 stop
+ *  5 (0101) - engine 1 down
+ *  6 (0110) - engine 1 up
+ *  8 (1000) - engine 2 stop
+ *  9 (1001) - engine 2 down
+ * 10 (1010) - engine 2 up
+ * 12 (1100) - engine 3 stop
+ * 13 (1101) - engine 3 down
+ * 14 (1110) - engine 3 up
+ * 15 (1111) - Light (in payload)
+ */
+
+/* TARGET
+ *  0 - BROADCAST
+ */
+
+ // Broadcast ID
+const unsigned char broadcast_id = 255;
+
+// RADIO SETTINGS
+bool radio_initialized=false; //Identifies if radio.begin was done
+bool radio_up=false; //Identifies if radio is powered up
+const uint8_t pipes[][6] = {"1Node","2Node"};
 union Frame {
     unsigned long frame;
     struct {
@@ -16,6 +61,15 @@ union Frame {
         unsigned char target;
     } d;
 };
+const unsigned char ack_bit_position = 7; // Location of ack bit
+const unsigned int receive_loop_cycle_wait = 20000; // delay in us during one receive loop cycle
+const unsigned int send_loop_cycle_wait = 10; // delay in ms during one send loop
+const unsigned int send_loop_duration = 10; //duration of send attempt in seconds
+const unsigned int send_loop_sending_duration = 30; // duration of send itself measured value
+const unsigned int send_loop_cycles = send_loop_duration * 1000 / (send_loop_cycle_wait + send_loop_sending_duration); // number of cycles needed for one send
+const unsigned int send_loop_end_sleep = 100; // delay in ms after send before next send is processed
+const unsigned int send_ack_received_delay = 1000; // delay after ack was received
+unsigned int sleep_time = send_loop_cycle_wait * 1000; // technical calculation
 
 // LOG SETTINGS
 const int log_level = 1000; //Log level, the lower number the more priority log, so lower level means less messages
@@ -152,5 +206,15 @@ int main () {
   printf ("de_queed: %lu \n",send_queue.t.frame);
   printf ("Clean queue \n");
   uq_clean (&send_queue);
+  printf ("Radio begin \n");
+    radio.begin ();
+  printf ("Radio write pipe \n");
+    radio.openWritingPipe(pipes[0]);
+  printf ("Radio read pipe  \n");
+    radio.openReadingPipe(1,pipes[1]);
+  printf ("Radio power up  \n");
+    radio.powerUp ();
+  printf ("Radio power down  \n");
+    radio.powerDown ();
   return 0;
 }
