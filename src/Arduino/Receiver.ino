@@ -24,8 +24,8 @@ const unsigned int radio_power_pin = 9;
 const unsigned int radio_init_delay = 10;
 bool radio_status = false;
 byte addresses[][6] = {"1Node", "2Node"};
-const unsigned long receive_duration = 50; //duration of receive in miliseconds
-const unsigned long receive_loop_delay = 3; //delay of one receive loop in miliseconds
+const unsigned long receive_duration = 20; //duration of receive in miliseconds
+const unsigned long receive_loop_delay = 2; //delay of one receive loop in miliseconds
 const bool retransfer_bit_set = false; // retransfer bit settings
 const unsigned char retransfer_bit_position = 6; // Location of re-transfer bit
 const unsigned char ack_bit_position = 7; // Location of ack bit
@@ -94,7 +94,7 @@ unsigned char v_read = 0; // voltage counter
 unsigned char v_send = 0; // voltage counter
 
 // Sleeping cycles in main loop
-const unsigned int sleep_after_deep_sleep = 50; // in ms normally cca 50
+const unsigned int sleep_after_deep_sleep = 1; // in ms normally cca 50
 const unsigned int sleep_during_sleep_lock = 500 + my_id;
 
 const unsigned int size_of_long = sizeof (unsigned long);
@@ -109,10 +109,10 @@ bool queue_add (union Frame *a, union Frame *q, unsigned char *start, unsigned c
       new_pos = *start + *count;
     } // Can shift queue
     else { return false; } // can not add
+  }
   q [new_pos] = *a;
   *count += 1;
   return true;
-  }
 }
 
 bool queue_remove (unsigned char *start, unsigned char *count) {
@@ -172,9 +172,9 @@ void shutdown_radio () {
 }
 
 bool rf_tx_only (unsigned long to_send_payload) {
-  if (serial_messages) { Serial.print (" Send start "); Serial.print (to_send_payload); }
+//  if (serial_messages) { Serial.print (" Send start "); Serial.print (to_send_payload); }
   if (to_send_payload > 0) {
-    init_radio ();
+    if (!radio_status) { init_radio (); }
     radio.stopListening ();
 //    if (serial_messages) { Serial.print (" stop listening "); }
     radio.write (&to_send_payload, size_of_long);
@@ -182,7 +182,7 @@ bool rf_tx_only (unsigned long to_send_payload) {
     radio.startListening();
 //    if (serial_messages) { Serial.print (" start listening "); }
   }
-  if (serial_messages) { Serial.print (" Send end "); }
+//  if (serial_messages) { Serial.print (" Send end "); }
 }
   
 bool rf_trx (unsigned long to_send_payload) {
@@ -205,22 +205,22 @@ bool rf_trx (unsigned long to_send_payload) {
           if (serial_messages) { Serial.print (" O: "); Serial.print (rx_tmp.d.order); }
           if (retransfer_bit_set) { bitSet (rx_tmp.frame, retransfer_bit_position); } else { bitClear (rx_tmp.frame, retransfer_bit_position); }
           bitSet (rx_tmp.frame, ack_bit_position); // We always set ack bit to distinguisb later in rx_queue between 0 as order (equals 0) and 0 as result of processing (has ack set)
-	        if (serial_messages) { Serial.print (" Ret+Ack Set "); Serial.print (rx_tmp.frame);}
-	        if (rx_tmp.d.target == my_id) { rf_tx_only (rx_tmp.frame); if (serial_messages) { Serial.print (" ACK: "); Serial.print (rx_tmp.frame); Serial.print (" T: ");Serial.print (millis ()); } } // Sending ack if it was for me
+          if (serial_messages) { Serial.print (" Ret+Ack Set "); Serial.print (rx_tmp.frame);}
+          if (rx_tmp.d.target == my_id) { rf_tx_only (rx_tmp.frame); if (serial_messages) { Serial.print (" ACK: "); Serial.print (rx_tmp.frame); Serial.print (" T: ");Serial.print (millis ()); } } // Sending ack if it was for me
           if (rx_tmp.frame != rx_last.frame) { // New data have been received
             if ((rx_tmp.d.order & orders_mask) == 0) { rx_queue_start = 0; rx_queue_count = 1; rx_queue[rx_queue_start].frame = 0; if (serial_messages) { Serial.print (" STOP ALL "); } } // stop all message is represented as 0 in rx_queue and also deletes queue until now (later)
             else { rx_queue_add (rx_tmp); if (serial_messages) { Serial.print (" Q+"); } }
             bitSet (sleep_lock,sleep_lock_orders_to_be_processed);
 //            if (serial_messages) { Serial.print (" Q val:"); Serial.print (rx_queue [rx_queue_start + rx_queue_count - 1].frame); Serial.print (" Q start:"); Serial.print (rx_queue_start); Serial.print (" Q count: "); Serial.print (rx_queue_count); }
-	          rx_last = rx_tmp ;
+            rx_last = rx_tmp ;
    	      } // New data have been received
         } // Message is NOT ack
         Serial.println (".");
       } // Traffic is for this node
       else { // Traffic not for this site, breaking cycle
         if (serial_messages) { Serial.print ("Traffic not for my_id ("); Serial.print (my_id); Serial.print ("): "); Serial.print (rx_tmp.d.target); Serial.println (" breaking cycle"); }
-	clear_air = false;
-	break;
+        clear_air = false;
+        break;
       } // Traffic not for this site, breaking cycle
     }  // while there are data ready
     if (clear_air) { delay (receive_loop_delay); }
@@ -228,19 +228,15 @@ bool rf_trx (unsigned long to_send_payload) {
   } // receive loop
   tend = millis ();
   if (clear_air) {
-    if (to_send_payload > 0) {
-      radio.stopListening();
-      radio.write (&to_send_payload, size_of_long);
-      radio.startListening ();
+		if (to_send_payload > 0) {
+      rf_tx_only (to_send_payload);
       if (serial_messages) { Serial.print ("SUM TRX: RX loops: "); Serial.print (i); Serial.print (" Tstart: "); Serial.print (tstart); Serial.print (" Tend "); Serial.print (tend); Serial.print (" Ttxp: "); Serial.println (millis ()); }
       return true;
     }
     else {
       if (tx_queue_count > 0) {
         to_send_payload = tx_queue[tx_queue_start].frame;
-        radio.stopListening();
-        radio.write (&to_send_payload, size_of_long);
-        radio.startListening ();
+        rf_tx_only (to_send_payload);
         queue_remove (&tx_queue_start, &tx_queue_count);
         if (serial_messages) { Serial.print ("SUM TRX: RX loops: "); Serial.print (i); Serial.print (" Tstart: "); Serial.print (tstart); Serial.print (" Tend "); Serial.print (tend); Serial.print (" Ttxq: "); Serial.println (millis ()); }
       }
