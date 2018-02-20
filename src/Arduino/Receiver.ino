@@ -21,11 +21,13 @@ const bool serial_messages = false;
 
 // RADIO definition
 const unsigned int radio_power_pin = 9;
-const unsigned int radio_init_delay = 10;
+const unsigned int radio_init_delay = 10; // Delay after power is applied to radio, should be 105.3 ms (MIN: 101.6 ms; MAX: 110.3 ms) if this is proven as true it makes no sense to power off radio between sleep cycles (ms)
+const unsigned char radio_sleep_wakeup_delay = 2; // Delay when radio is waken up from sleep state should be 1.5 ms according to datasheet (ms)
 bool radio_status = false;
+bool radio_voltage = false;
 byte addresses[][6] = {"1Node", "2Node"};
-const unsigned long receive_duration = 20; //duration of receive in miliseconds
-const unsigned long receive_loop_delay = 2; //delay of one receive loop in miliseconds
+const unsigned long receive_duration = 20; //duration of receive in miliseconds (ms)
+const unsigned long receive_loop_delay = 1; //delay of one receive loop in miliseconds (ms)
 const bool retransfer_bit_set = false; // retransfer bit settings
 const unsigned char retransfer_bit_position = 6; // Location of re-transfer bit
 const unsigned char ack_bit_position = 7; // Location of ack bit
@@ -79,22 +81,24 @@ unsigned char voltage_measure = 0;  // Voltage measure (up to 1.1V)
 unsigned long voltage_tmp_measure = 0;  // Voltage measure (up to 1.1V)
 unsigned char voltage_light = 0; // Voltage measure with light sensor
 unsigned long voltage_tmp_light = 0; // Voltage measure with light sensor
+unsigned long voltage_read_last = 0; // Time when voltage was last read
+unsigned long voltage_send_last = 0; // Time when voltahe was last time sent
 const unsigned char voltage_orders_bit_position = 5; // Position of voltage bit
-const unsigned long v_in_resistor = 47000; //multiplication removed
-const unsigned long v_gnd_resistor = 8200; //multiplication removed
+const unsigned long v_in_resistor = 470; // Resistor on voltage divider for main current (100ohm) be carefull: (1024 * 55 * (v_in_resistor + v_gnd_resistor)) <  4294967295 otherwise calculation will be broken !!!
+const unsigned long v_gnd_resistor = 82; // Resistor on voltage divider for ground (100ohm) be carefull: (1024 * 55 * (v_in_resistor + v_gnd_resistor)) <  4294967295 otherwise calculation will be broken !!!
 const unsigned char v_measure_pin = 1;
 const unsigned char v_measure_gnd = 10;
 const unsigned char delay_before_v_measure = 7;
 const unsigned char light_sensor_power_pin = 0;
-const unsigned char voltage_loops_read = 1; // read voltage each X loops (if set to 0 not executed)
-const unsigned char voltage_loops_send = 1; // send voltage each X loops, but not read, always mus tbe read by the voltage read (if set to 0 not executed)
+const unsigned int voltage_read_ms = 10000; // interval to read voltage (0 = disabled, implies also 0 on voltage_send_ms) (ms MAX:65535)
+const unsigned int voltage_send_ms = 65535; // interval to send voltage (0 = disabled) (ms MAX:65535), voltage will be NOT read, voltage will be send on NEXT read after this timer has expired
 const unsigned char voltage_turn_on_external = 50;  // Treshold when to start external power source
 const unsigned char voltage_turn_off_external = 240; // Treshold when to stop external power source
 unsigned char v_read = 0; // voltage counter
 unsigned char v_send = 0; // voltage counter
 
 // Sleeping cycles in main loop
-const unsigned int sleep_after_deep_sleep = 1; // in ms normally cca 50
+const unsigned int sleep_after_deep_sleep = 1; // in ms normally cca 50 (ms)
 const unsigned int sleep_during_sleep_lock = 500 + my_id;
 
 const unsigned int size_of_long = sizeof (unsigned long);
@@ -149,26 +153,37 @@ void init_radio () {
   if (radio_status) {
     return;
   }
-  pinMode(radio_power_pin, OUTPUT);
-  digitalWrite (radio_power_pin, HIGH);
-  delay (radio_init_delay);
-  radio.begin();
-  radio.setPALevel(RF24_PA_MAX);
-  radio.openWritingPipe(addresses[1]);
-  radio.openReadingPipe(1, addresses[0]);
+  if (!radio_voltage) {
+		pinMode(radio_power_pin, OUTPUT);
+		digitalWrite (radio_power_pin, HIGH);
+		delay (radio_init_delay);
+		radio.begin();
+		radio.setPALevel(RF24_PA_MAX);
+		radio.openWritingPipe(addresses[1]);
+		radio.openReadingPipe(1, addresses[0]);
+		radio_voltage = true;
+	}
   radio.startListening ();
+	delay (radio_sleep_wakeup_delay);
   radio_status = true;
 //  if (serial_messages) { Serial.print ("Radio powered up, on "); Serial.print (millis ()); Serial.println (" details follow: "); radio.printDetails (); }
 }
 
-void shutdown_radio () {
-  if (!radio_status) {
-    return;
+void shutdown_radio () { // hard power down, disconnecting power from radio module
+  if (radio_voltage) {
+		pinMode(radio_power_pin, INPUT);
+		radio_status = false;
+		radio_voltage = false;
+		if (serial_messages) { Serial.print ("Radio shut down on "); Serial.println (millis ()); }
   }
-  pinMode(radio_power_pin, INPUT);
-  radio_status = false;
-  if (serial_messages) { Serial.print ("Radio shut down on "); Serial.println (millis ()); }
+}
 
+void power_down_radio () {   // Soft power down, enter standby mode (should be 900 nA according to datasheet, in reality seems to be 1.6 to 2.02 mA) according to datasheet startup time from this status is 1.5ms
+	if (radio_status) {
+    radio.powerDown ();
+		radio_status = false;
+		if (serial_messages) { Serial.print ("Radio entered standby on: "); Serial.println (millis ()); }
+  }
 }
 
 bool rf_tx_only (unsigned long to_send_payload) {
@@ -308,6 +323,16 @@ void engine_stop_all () {
   bitClear (sleep_lock,sleep_lock_orders_engine_running);
 }
 
+void voltage_send (unsigned char p1, unsigned char p2) {
+  union Frame tx_t ;
+  tx_t.frame = 0;
+  tx_t.d.target = server_id;
+  tx_t.d.payload1 = p1;
+  tx_t.d.payload2 = p2;
+  bitSet (tx_t.d.order,voltage_orders_bit_position);
+  rf_tx_only (tx_t.frame);
+}
+
 unsigned long voltage_read (unsigned int internal, unsigned int voltage, unsigned int voltage_admux, unsigned int light, unsigned int light_admux) {
   // Internal is reference voltage measured against incomming
   // Voltage is external voltage measured against vref
@@ -316,7 +341,10 @@ unsigned long voltage_read (unsigned int internal, unsigned int voltage, unsigne
   unsigned long measuredVoltage;
   unsigned int channel;
   unsigned long refmv;
-  if (serial_messages) { Serial.print ("V T: "); Serial.print (millis()); }
+	unsigned long millis_now = millis ();
+	if (millis_now - voltage_read_last <= voltage_read_ms ) { return 0 }
+	//voltage_read_last = millis_now; see end of measure where new value is read to not count for measure time
+  if (serial_messages) { Serial.print ("V T: "); Serial.print (millis_now); }
   if (internal != 0) {
     ADMUX = 78; // REFS0 (6), MUX 3 (3), MUX 2 (2), MUX1 (1)
     delay (delay_before_v_measure); // to settle voltage
@@ -324,8 +352,10 @@ unsigned long voltage_read (unsigned int internal, unsigned int voltage, unsigne
     while (bit_is_set(ADCSRA, ADSC)); // Wail for ADSC to become 0
     refVoltage = ADCL; // ADCH is updated only after ADCL is read
     refVoltage |= ADCH << 8;
-    voltage_tmp_input = ((1100L * 1024L) / (refVoltage));
-    voltage_tmp_input = (voltage_tmp_input * 250L) / 5000L ;
+//   voltage_tmp_input = ((1100L * 1024L) / (refVoltage)); // Main calculation step 1 - voltage calculation
+//    voltage_tmp_input = (voltage_tmp_input * 250L) / 5000L ; // Main calculateion step 2 - normalization to scale 0 .. 250 where 250 = 5V
+//    voltage_tmp_input = ((1100L * 1024L * 250L) / (refVoltage * 5000L)); // summary of the 2 above steps
+    voltage_tmp_input = ((56320L) / (refVoltage)); // summary of the 2 above steps simplified
     if (voltage_tmp_input > 255) { voltage_input = 255; } else {voltage_input = voltage_tmp_input; }
     if (serial_messages) { refmv = 1126400L / refVoltage; Serial.print (" R: "); Serial.print (refVoltage); Serial.print (" / "); Serial.print (refmv); Serial.print (" p: "); Serial.print (voltage_input); }
   } // internal voltage measure
@@ -339,10 +369,11 @@ unsigned long voltage_read (unsigned int internal, unsigned int voltage, unsigne
     while (bit_is_set(ADCSRA, ADSC)); // Wail for ADSC to become 0
     measuredVoltage = ADCL; // ADCH is updated only after ADCL is read
     measuredVoltage |= ADCH << 8;
-//    voltage_measure =  (((measuredVoltage * 1100L * (v_in_resistor + v_gnd_resistor) * 250L) / (1024L * v_gnd_resistor * 5000L)) & 0x000000ffUL) ;// Conversion of external voltage measure where 250 = 1.1V
-    voltage_tmp_measure =  (measuredVoltage * 1100L) / 1024L;
-    voltage_tmp_measure =  (voltage_tmp_measure * (v_in_resistor + v_gnd_resistor)) / v_gnd_resistor;
-    voltage_tmp_measure =  (voltage_tmp_measure * 250L) / 5000L;
+//    voltage_measure =  (((measuredVoltage * 1100L * (v_in_resistor + v_gnd_resistor) * 250L) / (1024L * v_gnd_resistor * 5000L)) & 0x000000ffUL) ;// Conversion of external voltage measure where 250 = 1.1V (can not be processed by arduino due to size of values
+//    voltage_tmp_measure =  (measuredVoltage * 1100L) / 1024L;
+//    voltage_tmp_measure =  (voltage_tmp_measure * (v_in_resistor + v_gnd_resistor)) / v_gnd_resistor;
+//    voltage_tmp_measure =  (voltage_tmp_measure * 250L) / 5000L;
+    voltage_tmp_measure =  (((measuredVoltage * 55L * (v_in_resistor + v_gnd_resistor)) / (1024L * v_gnd_resistor))) ;// Conversion of external voltage measure where 250 = 1.1V, precalculated the fixed numbers, to be tested instead of above stepwise calculation
     if (voltage_tmp_measure > 255) { voltage_measure = 255; } else {voltage_measure = voltage_tmp_measure; }
     if (serial_messages) { Serial.print (" M("); Serial.print (channel & 15); Serial.print ("): "); Serial.print (measuredVoltage); Serial.print (" / "); measuredVoltage = (measuredVoltage * 1100L) / 1024L; Serial.print (measuredVoltage); Serial.print (" / "); measuredVoltage = (measuredVoltage * (v_in_resistor + v_gnd_resistor)) / v_gnd_resistor; Serial.print (measuredVoltage); Serial.print (" p: "); Serial.print (voltage_measure); }
   }
@@ -363,18 +394,14 @@ unsigned long voltage_read (unsigned int internal, unsigned int voltage, unsigne
     if (serial_messages) { Serial.print (" L("); Serial.print (channel & 15); Serial.print ("): "); Serial.print (measuredVoltage); Serial.print (" / "); measuredVoltage = (measuredVoltage * refmv) / 1024L; Serial.print (measuredVoltage); Serial.print (" / "); Serial.print (round (100*measuredVoltage/refmv)); Serial.print (" p: "); Serial.print (voltage_light); }
   }
   if (serial_messages) { Serial.println ("."); }
-  return measuredVoltage;
+	voltage_read_last = millis ();
+  if (voltage_read_last - voltage_send_last <= voltage_send_ms ) { return measuredVoltage; } 
+	// In reality this is else branch
+	voltage_send (voltage_input, voltage_light);
+	voltage_send_last = millis ();
+	return measuredVoltage;
+	
 } // readVoltage
-
-void voltage_send (unsigned char p1, unsigned char p2) {
-  union Frame tx_t ;
-  tx_t.frame = 0;
-  tx_t.d.target = server_id;
-  tx_t.d.payload1 = p1;
-  tx_t.d.payload2 = p2;
-  bitSet (tx_t.d.order,voltage_orders_bit_position);
-  rf_tx_only (tx_t.frame);
-}
 
 void process_orders () {
   if (serial_messages) { Serial.print ("Processing orders "); }
@@ -419,6 +446,7 @@ void sleep_lock_validate () {
       if (engines[i].operating) { // Engine running
         if ((millis () - engines[i].start < engines[i].runtime) || (engines[i].pin_down == 0)) { // Engine running and should be running (either based on time or based on fact that it is switch with unlimitd runtime pin_down == 0)
           bitSet (sleep_lock,sleep_lock_orders_engine_running);
+				  break; // We can break the cycle as we already know that sleep will be mot possible
         } // Engine running and should be running
         else { // Engine running, but should be shut down
           engine_change (i,0,false);
@@ -465,19 +493,6 @@ void loop() {
     sleep_lock_validate ();
     delay (sleep_during_sleep_lock);
   } // active orders can not sleep
-  if (voltage_loops_read > 0 ) {
-    v_read ++;
-    if (v_read >= voltage_loops_read) {
-      v_read = 0;
-      voltage_read (1,1,193,1,66);
-    }
-  }
-  if (voltage_loops_send > 0 ) {
-    v_send ++;
-    if (v_send >= voltage_loops_send) {
-      v_send = 0;
-      voltage_send (voltage_input, voltage_light);
-    }
-  }
+  if (voltage_read_ms > 0) { voltage_read (1,1,193,1,66); }
   rf_trx (0);
 }
