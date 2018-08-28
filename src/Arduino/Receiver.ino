@@ -12,6 +12,7 @@ const unsigned char my_id = 10;
 
 // Broadcast ID
 const unsigned char broadcast_id = 255;
+const unsigned char all_id = 0;
 
 // SERVER ID
 const unsigned char server_id = 1;
@@ -214,12 +215,12 @@ bool rf_trx (unsigned long to_send_payload) {
       radio.read( &rx_tmp.frame, size_of_long );             // Get the payload
       receive_time = millis ();
       // TODO check re-transfer requests here (maybe after the below if, but can not be as else due to re-transfer of broadcasts)
-      if ((rx_tmp.d.target == my_id) || (rx_tmp.d.target == broadcast_id)) { // traffic is for this node
+      if ((rx_tmp.d.target == my_id) || (rx_tmp.d.target == broadcast_id) || (rx_tmp.d.target == all_id) ) { // traffic is for this node
         if (serial_messages) { Serial.print ("RX: "); Serial.print (rx_tmp.frame); Serial.print (" T: "); Serial.print (receive_time); }
         if (bitRead (rx_tmp.frame, ack_bit_position) == 0) { // it is NOT ack message (we do not wait for ack's on client)
           if (serial_messages) { Serial.print (" O: "); Serial.print (rx_tmp.d.order); }
           if (retransfer_bit_set) { bitSet (rx_tmp.frame, retransfer_bit_position); } else { bitClear (rx_tmp.frame, retransfer_bit_position); }
-          bitSet (rx_tmp.frame, ack_bit_position); // We always set ack bit to distinguisb later in rx_queue between 0 as order (equals 0) and 0 as result of processing (has ack set)
+          bitSet (rx_tmp.frame, ack_bit_position); // We always set ack bit to distinguish later in rx_queue between 0 as order (equals 0) and 0 as result of processing (has ack set)
           if (serial_messages) { Serial.print (" Ret+Ack Set "); Serial.print (rx_tmp.frame);}
           if (rx_tmp.d.target == my_id) { rf_tx_only (rx_tmp.frame); if (serial_messages) { Serial.print (" ACK: "); Serial.print (rx_tmp.frame); Serial.print (" T: ");Serial.print (millis ()); } } // Sending ack if it was for me
           if (rx_tmp.frame != rx_last.frame) { // New data have been received
