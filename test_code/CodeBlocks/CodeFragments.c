@@ -1,5 +1,6 @@
 /*
  * Test file to see if compilerand everything works
+ * Test to check git commit added this line only
  */
 
 #include "CommonAutomation.h"
