@@ -22,10 +22,17 @@ const bool serial_messages = false;
 
 // RADIO definition
 const unsigned int radio_power_pin = 9;
-const unsigned int radio_init_delay = 10; // Delay after power is applied to radio, should be 105.3 ms (MIN: 101.6 ms; MAX: 110.3 ms) if this is proven as true it makes no sense to power off radio between sleep cycles (ms)
+const unsigned int radio_init_delay = 10; // Delay after power is applied to radio, should be 105.3 ms (MIN: 101.6 ms; MAX: 110.3 ms) if this is proven as true it makes no sense to power off radio between sleep cycles (ms) NOT NEEDED ANY MORE, REWORKED
 const unsigned char radio_sleep_wakeup_delay = 2; // Delay when radio is waken up from sleep state should be 1.5 ms according to datasheet (ms)
-bool radio_status = false;
-bool radio_voltage = false;
+const unsigned char radio_wait_after_power = 100; // In miliseconds how long we need to wait after power is applied to radio
+const unsigned char radio_wait_after_sleep = 10; // in miliseconds how long we need to wait after radio is waken up from deep sleep
+unsigned char radio_wait_time = radio_wait_after_power;
+bool radio_status = false; // if radio is active
+bool radio_sleeping = false; // True if radio is in deep sleep
+bool radio_voltage = false; // if radio has voltage (is powered up)
+bool radio_trx_ready = false; // if radio is ready for transmission
+bool rf_trx_done = false; // If trx was executed in this cycle
+const bool radio_shutdown_power = true; // true to shutdown radio power on power down, false to enter sleep mode on power down
 byte addresses[][6] = {"1Node", "2Node"};
 const unsigned long receive_duration = 20; //duration of receive in miliseconds (ms)
 const unsigned long receive_loop_delay = 1; //delay of one receive loop in miliseconds (ms)
@@ -91,8 +98,8 @@ const unsigned char v_measure_pin = 1;
 const unsigned char v_measure_gnd = 10;
 const unsigned char delay_before_v_measure = 7;
 const unsigned char light_sensor_power_pin = 0;
-const unsigned int voltage_read_ms = 10000; // interval to read voltage (0 = disabled, implies also 0 on voltage_send_ms) (ms MAX:65535)
-const unsigned int voltage_send_ms = 65535; // interval to send voltage (0 = disabled) (ms MAX:65535), voltage will be NOT read, voltage will be send on NEXT read after this timer has expired
+const unsigned int voltage_read_ms = 5000; // interval to read voltage (0 = disabled, implies also 0 on voltage_send_ms) (ms MAX:65535)
+const unsigned int voltage_send_ms = 5000; // interval to send voltage (0 = disabled) (ms MAX:65535), voltage will be NOT read, voltage will be send on NEXT read after this timer has expired
 const unsigned char voltage_turn_on_external = 50;  // Treshold when to start external power source
 const unsigned char voltage_turn_off_external = 240; // Treshold when to stop external power source
 unsigned char v_read = 0; // voltage counter
@@ -154,32 +161,53 @@ void init_radio () {
   if (radio_status) {
     return;
   }
+  radio_trx_ready = false;
   if (!radio_voltage) {
 		pinMode(radio_power_pin, OUTPUT);
 		digitalWrite (radio_power_pin, HIGH);
-		delay (radio_init_delay);
+		//delay (radio_init_delay);
 		radio.begin();
+    radio_start_time = millis ();
+    radio_wait_time = radio_wait_after_power;
 		radio.setPALevel(RF24_PA_MAX);
 		radio.openWritingPipe(addresses[1]);
 		radio.openReadingPipe(1, addresses[0]);
 		radio_voltage = true;
 	}
-  radio.startListening ();
-	delay (radio_sleep_wakeup_delay);
+  else { // Radio was powered up
+    if (radio_sleeping) { // Radio is sleeping
+      radio.powerUp();
+      radio_start_time = millis ();
+      radio_wait_time = radio_wait_after_sleep;
+    } // Radio is sleeping
+  } // Radio was powered up
+  // radio.startListening (); // we do not start listening here any more
+	// delay (radio_sleep_wakeup_delay);
+  radio_sleeping = false;
   radio_status = true;
 //  if (serial_messages) { Serial.print ("Radio powered up, on "); Serial.print (millis ()); Serial.println (" details follow: "); radio.printDetails (); }
 }
 
 void shutdown_radio () { // hard power down, disconnecting power from radio module
-  if (radio_voltage) {
-		pinMode(radio_power_pin, INPUT);
-		radio_status = false;
-		radio_voltage = false;
-		if (serial_messages) { Serial.print ("Radio shut down on "); Serial.println (millis ()); }
-  }
+  radio_trx_ready = false;
+  if (radio_voltage) { // if radio is powered up
+    if (radio_shutdown_power) { // radio should shutdown power on power down
+      pinMode(radio_power_pin, INPUT);
+      radio_status = false;
+      radio_voltage = false;
+      if (serial_messages) { Serial.print ("Radio shut down on "); Serial.println (millis ()); }
+    } // radio should shutdown power
+    else { // Radio is still powered up, only entering deep sleep mode
+      radio.powerDown();
+      radio_status = false;
+      radio_sleeping = true;
+      if (serial_messages) { Serial.print ("Radio entered deep sleep on "); Serial.println (millis ()); }
+    } // Radio is still powered up, only entering deep sleep mode
+  } // radio is powered up
 }
 
 void power_down_radio () {   // Soft power down, enter standby mode (should be 900 nA according to datasheet, in reality seems to be 1.6 to 2.02 mA) according to datasheet startup time from this status is 1.5ms
+// Do not use any more this function to be removed !!!
 	if (radio_status) {
     radio.powerDown ();
 		radio_status = false;
@@ -187,10 +215,21 @@ void power_down_radio () {   // Soft power down, enter standby mode (should be 9
   }
 }
 
+void radio_ready () { // Will wait required time to make sure that radio is ready, depends on type of power_down
+  if (!radio_status) { init_radio (); }
+  if (!radio_trx_ready) { // Waiting for radio to get ready
+    while (millis () - radio_start_time < radio_wait_time) {
+      delay (1);
+    } // Waiting for radio to become ready
+  } // Waiting for radio to get ready
+  radio.startListening ();
+  radio_trx_ready = true;
+} // Will wait required time to make sure that radio is ready, depends on type of power_down
+
 bool rf_tx_only (unsigned long to_send_payload) {
 //  if (serial_messages) { Serial.print (" Send start "); Serial.print (to_send_payload); }
   if (to_send_payload > 0) {
-    if (!radio_status) { init_radio (); }
+    radio_ready (); // Get radio ready and operational
     radio.stopListening ();
 //    if (serial_messages) { Serial.print (" stop listening "); }
     radio.write (&to_send_payload, size_of_long);
@@ -205,7 +244,7 @@ bool rf_trx (unsigned long to_send_payload) {
   unsigned long tstart, tend, receive_time;
   unsigned int i = 0;
   bool clear_air = true;
-  init_radio ();
+  radio_ready ();
   tstart = millis ();
   while (millis () - tstart < receive_duration)
   {
@@ -247,19 +286,19 @@ bool rf_trx (unsigned long to_send_payload) {
 		if (to_send_payload > 0) {
       rf_tx_only (to_send_payload);
       if (serial_messages) { Serial.print ("SUM TRX: RX loops: "); Serial.print (i); Serial.print (" Tstart: "); Serial.print (tstart); Serial.print (" Tend "); Serial.print (tend); Serial.print (" Ttxp: "); Serial.println (millis ()); }
-      return true;
     }
-    else {
-      if (tx_queue_count > 0) {
-        to_send_payload = tx_queue[tx_queue_start].frame;
-        rf_tx_only (to_send_payload);
-        queue_remove (&tx_queue_start, &tx_queue_count);
-        if (serial_messages) { Serial.print ("SUM TRX: RX loops: "); Serial.print (i); Serial.print (" Tstart: "); Serial.print (tstart); Serial.print (" Tend "); Serial.print (tend); Serial.print (" Ttxq: "); Serial.println (millis ()); }
-      }
-    } 
+    if (tx_queue_count > 0) {
+      to_send_payload = tx_queue[tx_queue_start].frame;
+      rf_tx_only (to_send_payload);
+      queue_remove (&tx_queue_start, &tx_queue_count);
+      if (serial_messages) { Serial.print ("SUM TRX: RX loops: "); Serial.print (i); Serial.print (" Tstart: "); Serial.print (tstart); Serial.print (" Tend "); Serial.print (tend); Serial.print (" Ttxq: "); Serial.println (millis ()); }
+    }
+    rf_trx_done = true;
+    return true;
   }
   else {
     if (serial_messages) { Serial.print ("SUM RX: RX loops: "); Serial.print (i); Serial.print (" Tstart: "); Serial.print (tstart); Serial.print (" Tend "); Serial.print (tend); Serial.print (" Now: "); Serial.println (millis ()); }
+    rf_trx_done = false;
     return false;
   }
 }
@@ -331,7 +370,8 @@ void voltage_send (unsigned char p1, unsigned char p2) {
   tx_t.d.payload1 = p1;
   tx_t.d.payload2 = p2;
   bitSet (tx_t.d.order,voltage_orders_bit_position);
-  rf_tx_only (tx_t.frame);
+  //rf_tx_only (tx_t.frame); // replaced by rf_trx 
+  rf_trx (tx_t.frame); // Can result in data not send in case there was another transmission ongoing, but these data can be lost and are not so valuable
 }
 
 unsigned long voltage_read (unsigned int internal, unsigned int voltage, unsigned int voltage_admux, unsigned int light, unsigned int light_admux) {
@@ -482,10 +522,14 @@ void setup() {
 }
 
 void loop() {
+  rf_trx_done = false;
   if (sleep_lock == 0) {
     // NO ACTIVE ORDER
     shutdown_radio ();
     LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
+    // Adjust timers as during deep sleep time is not ticking
+    voltage_read_last = voltage_read_last - 8000;
+    voltage_send_last = voltage_send_last - 8000;
     delay (sleep_after_deep_sleep);
   }
   else
@@ -494,6 +538,7 @@ void loop() {
     sleep_lock_validate ();
     delay (sleep_during_sleep_lock);
   } // active orders can not sleep
+  init_radio ();
   if (voltage_read_ms > 0) { voltage_read (1,1,193,1,66); }
-  rf_trx (0);
+  if (!rf_trx_done) { rf_trx (0); }
 }
