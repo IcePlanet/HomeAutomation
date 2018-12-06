@@ -1,0 +1,7 @@
+rule "test run"
+  when
+    Member of gZO received command
+  then
+    ECHO_SEND_Args.sendCommand("10 4 0");
+    logInfo("EchoSimple", "Member " + triggeringItem.name + " received " + receivedCommand + " finished with " + ECHO_SEND_Out.state)
+end

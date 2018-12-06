@@ -1,0 +1,29 @@
+
+rule "Manual rollershutter run"
+  when
+    Member of gZO received command
+  then
+    try {
+      arduino_writer.lock()
+      logInfo("Rollershutter", "Member " + triggeringItem.name + " received " + receivedCommand)
+      val String split_part1 = triggeringItem.name.toString.split("x").get(1)
+      val String split_part2 = triggeringItem.name.toString.split("x").get(2)
+      if (receivedCommand == DOWN) {
+        ARDUINO_SEND_Args.sendCommand(split_part1 + " " + split_part2 +" 1")
+      }
+      if (receivedCommand == UP) {
+        logInfo ("Rollershutter", "GOING UP ")
+        ARDUINO_SEND_Args.sendCommand(split_part1 + " " + split_part2 +" 2")
+      }
+      if (receivedCommand == STOP) {
+        ARDUINO_SEND_Args.sendCommand(split_part1 + " " + split_part2 +" 0")
+      }
+      logInfo("Rollershutter", "Member " + triggeringItem.name + " received " + receivedCommand + " translated to" + split_part1 + "+" + split_part2 )
+    }catch(Throwable t) {}
+    finally {
+        arduino_writer.unlock()
+    }
+end
+
+
+#Rollershutter ZaluziePeter "Petova izba zaluzie" (zaluzie_all, zaluzie1) {exec="STOP:/usr/share/openhab/bin/enqueue.sh 10 1 0, DOWN:/usr/share/openhab/bin/enqueue.sh 10 1 1, UP:/usr/share/openhab/bin/enqueue.sh 10 1 2"}

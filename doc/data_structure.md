@@ -39,7 +39,7 @@ Bits on `orders` part are split in 2 groups, they are joined together in final `
 * **bit 6**: Re-transfer request if set to `1` (64)
 * **bit 7**: ACK bit, if set to `1` (128) the message is ACK
 
-Empty data are not send so there can not be misinterpretatioon of all stop vs empty data
+Empty data are not send so there can not be misinterpretation of all stop vs empty data
 
 #### Orders: ENGINES
 

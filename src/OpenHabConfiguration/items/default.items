@@ -1,0 +1,25 @@
+Switch AUTO_MANUAL "Automation" <switch>
+Number AUTO_MODE "Auto mode" <temperature>
+Switch HOME_AWAY "Away" <lock>
+
+Switch STOP_ALL "STOP" <error> {autoupdate="false"}
+
+Group:Rollershutter gZx "Zaluzie" <blinds>
+Group:Rollershutter gZO "Zaluzie okna" <blinds> (gZx)
+Group:Rollershutter gZD "Zaluzie dvere" <blinds> (gZx)
+Group gFF "Poschodie" <firstfloor>
+Group gGF "Prizemie" <groundfloor>
+Group gFF_Peter "Peter" <firstfloor> (gFF)
+
+Rollershutter Z1_S_PETER_BIGx10x1 "Peter dvere" <blinds> (gFF_Peter, gZO)
+Rollershutter Z1_S_PETER_SMALLx11x1 "Peter okno" <blinds> (gFF_Peter, gZO)
+
+Switch ARDUINO_SEND { channel="exec:command:arduino_send:run" }
+String ARDUINO_SEND_Args { channel="exec:command:arduino_send:input" }
+String ARDUINO_SEND_Out { channel="exec:command:arduino_send:output" }
+
+Switch ECHO_SEND { channel="exec:command:echo_only:run" }
+String ECHO_SEND_Args { channel="exec:command:echo_only:input" }
+String ECHO_SEND_Out { channel="exec:command:echo_only:output" }
+
+Switch vent_niveau_3 "Ventilation max" <error> {autoupdate="false"}

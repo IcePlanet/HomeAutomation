@@ -1,0 +1,20 @@
+sitemap novaky label="Doma"
+{
+        Frame label="Locations" {
+                Group item=gGF
+                Group item=gFF
+                //Group item=gC label="Pivnica" icon="cellar"
+                //Group item=Garden label="Zahrada" icon="garden"
+        }
+        Frame label="Functions" {
+                Switch  item=STOP_ALL mappings=[ON="STOP ALL"]
+        }
+        Frame label="Settings" {
+                Switch item=AUTO_MANUAL
+                Switch item=AUTO_MODE mappings=[0="Neutral", 1="Heating", 2="Cooling"]
+                Switch item=HOME_AWAY
+        }
+        Frame label="TEST" {
+                Switch  item=vent_niveau_3 mappings=[ON="STOP ALL"]
+        }
+}
