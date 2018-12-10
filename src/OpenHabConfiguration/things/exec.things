@@ -1,6 +1,6 @@
 Thing exec:command:arduino_send [
             command="/usr/local/bin/enqueue.sh %2$s",
             interval=0,
-            autorun=true]
+            autorun=false]
 
-Thing exec:command:echo_only [command="echo %2$s"]
+Thing exec:command:echo_only [command="echo %2$s", interval=0]

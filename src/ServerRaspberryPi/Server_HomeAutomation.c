@@ -307,7 +307,8 @@ void send_to_open_hab (unsigned char source, unsigned char type, unsigned char v
     default :
       snprintf (open_hab_id, 31,"%s", OH_UNKNOWN);
   }
-  snprintf (sensor_name, 99, "s%sx%sxIN", open_hab_type, open_hab_id) ;
+  snprintf (sensor_name, 99, "s_%s_%s_INRAW", open_hab_type, open_hab_id);
+  
   log_message (880,1,"D: Detected sensor is %s from %u, %u\n",sensor_name, type, source);
 }
 

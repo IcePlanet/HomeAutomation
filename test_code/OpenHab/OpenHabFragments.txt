@@ -27,3 +27,59 @@ end
 
 
 #Rollershutter ZaluziePeter "Petova izba zaluzie" (zaluzie_all, zaluzie1) {exec="STOP:/usr/share/openhab/bin/enqueue.sh 10 1 0, DOWN:/usr/share/openhab/bin/enqueue.sh 10 1 1, UP:/usr/share/openhab/bin/enqueue.sh 10 1 2"}
+
+
+Group gSx "Sensors"
+Number SxlightxsouthffxINRAW "Light sensor SOUTH" (gSx)
+
+import java.util.concurrent.locks.ReentrantLock
+import java.util.HashMap
+
+// Based on https://community.openhab.org/t/simplification-of-hashmap-rule/2146
+val HashMap<String, HashMap<String, Object>> EngineConfig = newHashMap(
+    "Z1_S_PETER_BIG" -> (newHashMap(
+            "Commander_id"        -> 10 as Integer, // Remote commander block controling engine
+            "Engine_id"        -> 1 as Integer, // Engine number on given commander
+            "Timer"    -> null as Timer, // Timer to prevent too frequent changes
+            "Respect_AM" -> true as Boolean, // If engine should respect Auto/Manual setup, if no it is always manual
+            "PlantsProtect" -> true as Boolean,  // Plants protection (Px)
+            "DoorProtect" -> false as Boolean, // If door should be protected (Dx)
+            "RainProtect" -> true as Boolean, // If rain protection is activated (Rx)
+            "CoolingRespect" -> false as Boolean, // If cooling rules should be obeyed (Cx)
+        as HashMap<String, Object>,
+)
+
+include java.util.concurrent.locks.ReentrantLock
+
+val ReentrantLock arduino_writer = new ReentrantLock()
+
+rule "direct_run_gZx_group"
+  when
+    Member of gZx received command
+  then
+    try {
+      logInfo("Rollershutter", "Member " + triggeringItem.name + " received " + receivedCommand)
+      arduino_writer.lock()
+      val String split_part1 = triggeringItem.name.toString.split("x").get(1)
+      val String split_part2 = triggeringItem.name.toString.split("x").get(2)
+      if (receivedCommand == DOWN) {
+        ARDUINO_SEND_Args.sendCommand(split_part1 + " " + split_part2 +" 1")
+      }
+      if (receivedCommand == UP) {
+        logInfo ("Rollershutter", "GOING UP ")
+        ARDUINO_SEND_Args.sendCommand(split_part1 + " " + split_part2 +" 2")
+      }
+      if (receivedCommand == STOP) {
+        ARDUINO_SEND_Args.sendCommand(split_part1 + " " + split_part2 +" 0")
+      }
+      logInfo("Rollershutter", "Member " + triggeringItem.name + " received " + receivedCommand + " translated to" + split_part1 + "+" + split_part2 )
+    }catch(Throwable t) {}
+    finally {
+        arduino_writer.unlock()
+    }
+end
+
+
+// TEST SECTION
+//group gTEST "TEST GROUP"
+

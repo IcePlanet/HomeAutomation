@@ -35,6 +35,8 @@ sudo chown -R openhab:openhab /usr/share/openhab2
 sudo chown -R openhab:openhab /var/log/openhab2
 sudo chown -R openhab:openhab /etc/openhab2
 
+# Uninstall home builder (via paper UI)
+
 # Routes
 route delete 0.0.0.0
 route add 192.168.2.0 MASK 255.255.255.0 192.168.2.1 METRIC 50 IF 17

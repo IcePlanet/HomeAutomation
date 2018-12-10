@@ -83,7 +83,7 @@ const unsigned char sleep_lock_orders_to_be_processed = 0; // bit position for a
 const unsigned char sleep_lock_orders_engine_running = 1; // bit position for running engine
 const unsigned char orders_mask = B00010000; // Mask for orders this system is able to accept, if none of them is set to 1 it is considered as all-stop order
 
-// VOLTAGE measure
+// VOLTAGE measure + LIGHT
 unsigned char voltage_input = 0;  // Input voltage for the arduino board
 unsigned long voltage_tmp_input = 0;  // Input voltage for the arduino board
 unsigned char voltage_measure = 0;  // Voltage measure (up to 1.1V)
@@ -93,6 +93,7 @@ unsigned long voltage_tmp_light = 0; // Voltage measure with light sensor
 unsigned long voltage_read_last = 0; // Time when voltage was last read
 unsigned long voltage_send_last = 0; // Time when voltahe was last time sent
 const unsigned char voltage_orders_bit_position = 5; // Position of voltage bit
+const unsigned char light_orders_bit_position = 0; // Position of light bit
 const unsigned long v_in_resistor = 470; // Resistor on voltage divider for main current (100ohm) be carefull: (1024 * 55 * (v_in_resistor + v_gnd_resistor)) <  4294967295 otherwise calculation will be broken !!!
 const unsigned long v_gnd_resistor = 82; // Resistor on voltage divider for ground (100ohm) be carefull: (1024 * 55 * (v_in_resistor + v_gnd_resistor)) <  4294967295 otherwise calculation will be broken !!!
 const unsigned char v_measure_pin = 1;
@@ -105,6 +106,9 @@ const unsigned char voltage_turn_on_external = 50;  // Treshold when to start ex
 const unsigned char voltage_turn_off_external = 240; // Treshold when to stop external power source
 unsigned char v_read = 0; // voltage counter
 unsigned char v_send = 0; // voltage counter
+unsigned char voltage_ignore_range = 10; // what must be the minimal difference from last measure to send to server (total range is 2x voltage_ignore_range)
+unsigned char voltage_ignore_min = 0; //setup in a way that condition will be always met on 1st run
+unsigned char voltage_ignore_max = 0; 
 
 // Sleeping cycles in main loop
 const unsigned int sleep_after_deep_sleep = 1; // in ms normally cca 50 (ms)
@@ -366,12 +370,19 @@ void engine_stop_all () {
   bitClear (sleep_lock,sleep_lock_orders_engine_running);
 }
 
-void voltage_send (unsigned char p1, unsigned char p2) {
+void voltage_send (unsigned char p1, unsigned char bit_p2, unsigned char p2) {
+  // bit_p2 is used to indicate which bit to set for payload p2, if bit_p2 is >= 8 then p2 is empty and no bit is set and p2 is not included in the transfer
   union Frame tx_t ;
   tx_t.frame = 0;
   tx_t.d.target = server_id;
   tx_t.d.payload1 = p1;
-  tx_t.d.payload2 = p2;
+  if (bit_p2 < 8 ) {
+    tx_t.d.payload2 = p2;
+    bitSet (tx_t.d.order,bit_p2);
+  }
+  else {
+    tx_t.d.payload2 = 0;
+  }
   bitSet (tx_t.d.order,voltage_orders_bit_position);
   //rf_tx_only (tx_t.frame); // replaced by rf_trx 
   rf_trx (tx_t.frame); // Can result in data not send in case there was another transmission ongoing, but these data can be lost and are not so valuable
@@ -440,12 +451,21 @@ unsigned long voltage_read (unsigned int internal, unsigned int voltage, unsigne
   if (serial_messages) { Serial.println ("."); }
 	voltage_read_last = millis ();
   if (voltage_read_last - voltage_send_last <= voltage_send_ms ) { return measuredVoltage; } 
-	// In reality this is else branch
-	voltage_send (voltage_input, voltage_light);
-	voltage_send_last = millis ();
+  else {
+    if ( light !=0 ) {
+      if ( ( voltage_light < voltage_ignore_min ) || ( voltage_light > voltage_ignore_max ) ) {
+        if (voltage_light >= voltage_ignore_range) { voltage_ignore_min = voltage_light - voltage_ignore_range; } else { voltage_ignore_min =  0; }
+        if (voltage_light <= (255 - voltage_ignore_range)) { voltage_ignore_max = voltage_light + voltage_ignore_range; } else { voltage_ignore_max =  255; }
+        voltage_send (voltage_input, light_orders_bit_position, voltage_light);
+      }
+    }
+    else {
+      voltage_send (voltage_input,10 , 0);
+    }
+    voltage_send_last = millis ();
+  }
   //if (serial_messages) { Serial.println ("<"); }
 	return measuredVoltage;
-	
 } // readVoltage
 
 void process_orders () {
