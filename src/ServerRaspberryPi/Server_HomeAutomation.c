@@ -3,11 +3,16 @@
  */
 
 #include "CommonAutomation.h"
-#include <time.h>
 #include "/usr/local/include/RF24/RF24.h"
 #include <stdarg.h>
+#include <sys/socket.h> /* socket, connect */
+#include <arpa/inet.h>
+#include <netinet/in.h> /* struct sockaddr_in, struct sockaddr */
+#include <netinet/tcp.h>
+//#include <netdb.h> /* struct hostent, gethostbyname */
 
 #include <limits.h>     /* for CHAR_BIT */
+
 #define BITMASK(b) (1 << ((b) % CHAR_BIT))
 #define BITSLOT(b) ((b) / CHAR_BIT)
 #define BITSET(a, b) ((a)[BITSLOT(b)] |= BITMASK(b))
@@ -93,10 +98,10 @@ const unsigned long mask_long_ack = 128;
 const unsigned long mask_long_retransfer = mask_retransfer_send;
 
 // LOG SETTINGS
-const int log_level = 799; //Log level, the lower number the more priority log, so lower level means less messages
+const int log_level = 999; //Log level, the lower number the more priority log, so lower level means less messages
 const char* timeformat = "%Y%m%d%H%M%S";
 const bool log_to_screen = true;
-const bool log_to_syslog = true;
+const bool log_to_syslog = false;
 const unsigned int log_level_emergency = 100;
 const unsigned int log_level_alert = 200;
 const unsigned int log_level_critical = 300;
@@ -127,7 +132,20 @@ const unsigned long file_read_delay = 100000; // delay between checks of queue f
 const char *OH_LIGHT = "light";
 const char *OH_VOLTAGE = "voltage";
 const char *OH_UNKNOWN = "UNKNOWN";
-const char *OH_SOUTH_FF = "south_ff";
+const char *OH_SOUTH_FF = "southff";
+const char *OH_IP = "192.168.2.222";
+const short unsigned int OH_PORT = 8080;
+const char *OH_PATH = "/rest/items/";
+struct sockaddr_in sin = { 0 };
+int sock;
+int garbage;
+int opt=1;
+char * oh_tpl = (char *)"POST %s%s HTTP/1.0\r\n"
+        "Content-Type: text/plain\r\n"
+        "Accept: application/json\r\n"
+        "Content-Length: %d\r\n"
+        "\r\n"
+        "%s";
 
 int log_message (int level, int detail, const char* message, ...) {
   struct timeval tv;
@@ -288,6 +306,8 @@ void send_to_open_hab (unsigned char source, unsigned char type, unsigned char v
   char open_hab_type [32];
   char open_hab_id [32];
   char sensor_name[100];
+  char message [1024];
+  char new_value_as_text [10];
   switch (type)
   {
     case 2 :
@@ -297,7 +317,8 @@ void send_to_open_hab (unsigned char source, unsigned char type, unsigned char v
       snprintf (open_hab_type, 31,"%s", OH_VOLTAGE);
       break ;
     default :
-      snprintf (open_hab_type, 31,"%s", OH_UNKNOWN); 
+      log_message (570,1,"W: Unknown type %u (source %u value %u)\n",type, source, value);
+      return;
   }
   switch (source)
   {
@@ -305,11 +326,31 @@ void send_to_open_hab (unsigned char source, unsigned char type, unsigned char v
       snprintf (open_hab_id, 31,"%s", OH_SOUTH_FF);
       break ;
     default :
-      snprintf (open_hab_id, 31,"%s", OH_UNKNOWN);
+      log_message (570,1,"W: Unknown source %u (type %u value %u)\n",source, type, value);
+      return;
   }
-  snprintf (sensor_name, 99, "s_%s_%s_INRAW", open_hab_type, open_hab_id);
-  
+  snprintf (sensor_name, 99, "S_%s_%sxINRAW", open_hab_type, open_hab_id);
   log_message (880,1,"D: Detected sensor is %s from %u, %u\n",sensor_name, type, source);
+  // https://stackoverflow.com/questions/7901945/c-open-socket-on-a-specific-ip
+  // curl -X POST --header "Content-Type: text/plain" --header "Accept: application/json" -d "47" "http://192.168.2.222:8080/rest/items/S_light_southffxINRAW"
+  sin.sin_family = AF_INET;
+  sin.sin_port = htons (OH_PORT);
+  //inet_aton(OH_IP, &sin.sin_addr);
+  sin.sin_addr.s_addr = inet_addr(OH_IP);
+  //sock = socket(AF_INET, SOCK_STREAM, 0);
+  sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
+  log_message (880,1,"D: Socket for %s open as %d\n",sensor_name, sock);
+  setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(int));
+  log_message (880,1,"D: Socket for %s options set %d\n",sensor_name, sock);
+  //bind(sock, (struct sockaddr *) &sin, sizeof(sin));
+  connect(sock, (struct sockaddr *)&sin, sizeof(struct sockaddr_in));
+  log_message (880,1,"D: Socket for %s connect %d\n",sensor_name, sock);
+  snprintf (new_value_as_text, 9, "%u", (unsigned) value);
+  snprintf (message, 1023, oh_tpl, OH_PATH, sensor_name, (int) strlen(new_value_as_text), new_value_as_text);
+  log_message (880,1,"D: Socket for %s message ready as %d/%s\n",sensor_name, sock, message);
+  garbage = send(sock, message, strlen(message), 0);
+  log_message (880,1,"D: Socket for %s send %d/%s\n",sensor_name, sock, message);
+  close(sock);
 }
 
 void decodeMessage (unsigned long to_decode) {
@@ -317,6 +358,8 @@ void decodeMessage (unsigned long to_decode) {
   t.frame = to_decode;
   if ((t.d.order & mask_voltage) != 0) { // Voltages message
     log_message (720,1,"D: %lu decoded as %u (p1) and %u (p2) \n",to_decode,t.d.payload1, t.d.payload2);
+    // TODO this is wrong as currently arduino is not sending own ID so we do not know from which arduino information was received, will be p1 in future
+    send_to_open_hab (10,2,t.d.payload2);
   }  // Voltages message
   else {log_message (500,1,"Decoder %lu dropped as unknown\n",to_decode);}
   return;
@@ -455,6 +498,11 @@ int main(int argc, char** argv) {
   if (log_to_syslog) { openlog("HomeAutomationServer", LOG_PID, LOG_USER); }
   log_message (710,1,"START SERVER FOR RF24\n");
 
+// TEST CODE START
+//  send_to_open_hab (10,2,47);
+//  exit (0);
+// TEST CODE END
+  
   empty_frame.frame = 0;
   
   start_radio ();

@@ -18,7 +18,7 @@ sitemap novaky label="Doma"
                 Setpoint item=S_light_southffxSunshineTreshold minValue=0 maxValue=255 step=5
         }
         Frame label="TEST" {
-                Switch  item=vent_niveau_3 mappings=[ON="STOP ALL"]
+                Switch  item=vent_niveau_3 mappings=[ON="TEST"]
                 Setpoint item=S_light_southffxINRAW minValue=0 maxValue=255 step=5
                 Switch item=Z1_S_TSTxMAIN
         }

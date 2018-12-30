@@ -1,10 +1,25 @@
 import java.util.concurrent.locks.ReentrantLock
 import org.eclipse.smarthome.model.script.ScriptServiceUtil
+import java.util.HashMap
 
 val ReentrantLock arduino_writer = new ReentrantLock
+val ReentrantLock auto_runner_lock = new ReentrantLock
 val Integer sensor_default_hyst = 20
 val Integer sensor_default_dark = 80
 val Integer sensor_default_sunshine = 200
+val Integer default_lockout_time = 5 // default time in minutes to wait after engine run (valid for automation mode only)
+
+var HashMap<String, HashMap<String, Object>> EngineConfig = newHashMap(
+//var EngineConfig = newHashMap(
+    "Z1_S_PETER_BIG" -> (newHashMap(
+            "Commander_id"        -> 10 as Integer, // Remote commander block controling engine
+            "Engine_id"        -> 1 as Integer, // Engine number on given commander
+            "Timer"    -> null as Timer // Timer to prevent too frequent changes
+//            "LastRun" -> now.minusMinutes(1024) as DateTimeType, // Time of last run
+//            "LastManualOrder" -> 10 as Integer, // Last manual order for automation detection, 0=STOP; 1=DOWN; 2=UP; 10=NONE
+//            "locked_after_manual_run" -> 33 as Integer // Time in minutes that it is locked after last run
+        ))
+)
 
 rule "Startup"
   when 
@@ -22,20 +37,27 @@ rule "direct_run_gZx_group"
     try {
       logInfo("Rollershutter", "Member " + triggeringItem.name + " received " + receivedCommand)
       arduino_writer.lock()
+      val String split_part0 = triggeringItem.name.toString.split("x").get(0)
       val String split_part1 = triggeringItem.name.toString.split("x").get(1)
       val String split_part2 = triggeringItem.name.toString.split("x").get(2)
       if (receivedCommand == DOWN) {
         ARDUINO_SEND_Args.sendCommand(split_part1 + " " + split_part2 +" 1")
         ARDUINO_SEND.sendCommand(ON)
-    }
+        postUpdate (split_part0 + "xLastRunDirection","1")
+        postUpdate(split_part0 + "xLastRunTime", new DateTimeType().toString)
+      }
       if (receivedCommand == UP) {
-        logInfo ("Rollershutter", "GOING UP ")
+//        logInfo ("Rollershutter", "GOING UP " + split_part0 + "|" +  split_part0 as String)
         ARDUINO_SEND_Args.sendCommand(split_part1 + " " + split_part2 +" 2")
         ARDUINO_SEND.sendCommand(ON)
+        postUpdate (split_part0 + "xLastRunDirection","2")
+        postUpdate(split_part0 + "xLastRunTime", new DateTimeType().toString)
       }
       if (receivedCommand == STOP) {
         ARDUINO_SEND_Args.sendCommand(split_part1 + " " + split_part2 +" 0")
         ARDUINO_SEND.sendCommand(ON)
+        //postUpdate (split_part0 + "xLastRunDirection",0) //Commented out as for stop we keep last direction used before
+        postUpdate(split_part0 + "xLastRunTime", new DateTimeType().toString)
       }
       logInfo("Rollershutter", "Member " + triggeringItem.name + " received " + receivedCommand + " translated to" + split_part1 + "+" + split_part2 )
     }catch(Throwable t) {}
@@ -44,8 +66,18 @@ rule "direct_run_gZx_group"
     }
 end
 
+rule "Sensor triggers" 
+  when
+    Member of g_TRIGGER_ALL changed
+  then
+    val String split_part0 = triggeringItem.name.toString.split("x").get(0)
+    val local_tiggered_group_name = split_part0 + "xTRIGGER"
+    val local_tiggered_group_item = ScriptServiceUtil.getItemRegistry.getItem(local_tiggered_group_name) as GenericItem
+    local_tiggered_group_item.allMembers.forEach [i | i.postUpdate (ON) ]
+end
+
 rule "South SLD"
-// 0:Sunshine 1:Light 2:Dark test
+// 0:Sunshine 1:Light 2:Dark
   when
     Item S_light_southffxINRAW changed
   then
@@ -77,8 +109,14 @@ rule "test run"
   when
     Member of gTEST received command
   then
-    ECHO_SEND_Args.sendCommand("10 4 0")
-    logInfo("EchoSimple", "Member " + triggeringItem.name + " received " + receivedCommand + " finished with " + ECHO_SEND_Out.state)
+    try {
+      logInfo("TEST", "Before return")
+      //return;
+      logInfo("TEST", "After return")
+    }catch(Throwable t) {}
+    finally {
+      logInfo("TEST", "Finally")
+    }
 end
 
 rule "Test item name change"

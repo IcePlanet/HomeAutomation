@@ -20,18 +20,26 @@ Group gFF "Poschodie" <firstfloor>
 Group gFF_Peter "Peter" <firstfloor> (gFF)
 
 Rollershutter Z1_S_PETER_BIGx10x1 "Peter dvere" <blinds> (gFF_Peter, gZO, gZ_ALL, gZ_South)
-Switch Z1_S_PETER_BIG_TRIGGER "Trigger to start automatic recalculation" (gS_light_southffxTRIGGER)
+Switch Z1_S_PETER_BIGxTRIGGER "Trigger to start automatic recalculation" (gS_light_southffxTRIGGER)
+DateTime Z1_S_PETER_BIGxLastRunTime "Last run time"
+Number Z1_S_PETER_BIGxLastRunDirection "Last run direction for manual command 0:Stop; 1:DOWN; 2:UP for automated command it is always 10"
+Number Z1_S_PETER_BIGxRespectAutomation "If automation is followed 0:No automation; 1:Automation"
 
 Rollershutter Z1_S_PETER_SMALLx11x1 "Peter okno" <blinds> (gFF_Peter, gZO, gZ_ALL, gZ_South)
+Switch Z1_S_PETER_SMALLxTRIGGER "Trigger to start automatic recalculation" (gS_light_southffxTRIGGER)
+DateTime Z1_S_PETER_SMALLxLastRunTime "Last run time"
+Number Z1_S_PETER_SMALLxLastRunDirection "Last run direction for manual command 0:Stop; 1:DOWN; 2:UP for automated command it is always +10"
+Number Z1_S_PETER_SMALLxRespectAutomation "If automation is followed 0:No automation; 1:Automation"
 
 // SENSORS
 Group gSx "Sensors"
 Group gS_Setup_ALL "Sensors Setup"
+Group gS_TRIGGER_ALL "All sensor values that can trigger recalculation"
 
 Group gS_Setup_Sensor1 "Sensor 1 setup" (gS_Setup_ALL)
 Group gS_light_southffxTRIGGER "Items triggered by S_light_southffxSLD sensor"
 Number S_light_southffxINRAW "Light sensor SOUTH  [%s]" (gSx)
-Number S_light_southffxSLD "Sun Light Dark" (gS_Clean)
+Number S_light_southffxSLD "Sun Light Dark" (gS_Clean, g_TRIGGER_ALL)
 Number S_light_southffxDarkTreshold "Dark treshold [%s]" (gS_Setup_Sensor1)
 Number S_light_southffxSunshineTreshold "Sunshine treshold [%s]" (gS_Setup_Sensor1)
 
