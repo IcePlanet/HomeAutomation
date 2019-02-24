@@ -1,0 +1,8 @@
+# This file should be located in /etc/logrotate.d/home_automation
+/var/log/home_automation_server.log {
+        rotate 123
+        compress
+        delaycompress
+        missingok
+        nomail
+}
