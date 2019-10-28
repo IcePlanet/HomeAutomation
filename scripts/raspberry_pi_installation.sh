@@ -1,4 +1,4 @@
-# IP Setup (/etc/dhcpcd.conf)
+# IP Setup (/etc/dhcpcd.conf or network/interfaces)
 # Static IP address for eth0
 interface eth0
 #static ip_address=192.168.1.222/24 # FINAL configuration

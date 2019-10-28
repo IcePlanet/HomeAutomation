@@ -12,7 +12,7 @@ val Integer default_lockout_time = 5 // default time in minutes to wait after en
 var HashMap<String, HashMap<String, Object>> EngineConfig = newHashMap(
 //var EngineConfig = newHashMap(
     "Z1_S_PETER_BIG" -> (newHashMap(
-            "Commander_id"        -> 10 as Integer, // Remote commander block controling engine
+            "Commander_id"        -> 11 as Integer, // Remote commander block controling engine
             "Engine_id"        -> 1 as Integer, // Engine number on given commander
             "Timer"    -> null as Timer // Timer to prevent too frequent changes
 //            "LastRun" -> now.minusMinutes(1024) as DateTimeType, // Time of last run

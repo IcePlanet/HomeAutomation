@@ -8,7 +8,7 @@
 RF24 radio(7, 8);
 
 // MY ID
-const unsigned char my_id = 10;
+const unsigned char my_id = 11;
 
 // Broadcast ID
 const unsigned char broadcast_id = 255;
@@ -100,7 +100,8 @@ const unsigned char v_measure_pin = 1;
 const unsigned char v_measure_gnd = 10;
 const unsigned char delay_before_v_measure = 7; // 7
 const unsigned char light_sensor_power_pin = 0;
-const unsigned int voltage_read_ms = 65432; // interval to read voltage (0 = disabled, implies also 0 on voltage_send_ms) (ms MAX:65535)
+//const unsigned int voltage_read_ms = 65432; // interval to read voltage (0 = disabled, implies also 0 on voltage_send_ms) (ms MAX:65535) 
+const unsigned int voltage_read_ms = 0; // interval to read voltage (0 = disabled, implies also 0 on voltage_send_ms) (ms MAX:65535)
 const unsigned int voltage_send_ms = 50000; // interval to send voltage (0 = disabled) (ms MAX:65535), voltage will be NOT read, voltage will be send on NEXT read after this timer has expired
 const unsigned char voltage_turn_on_external = 50;  // Treshold when to start external power source
 const unsigned char voltage_turn_off_external = 240; // Treshold when to stop external power source
