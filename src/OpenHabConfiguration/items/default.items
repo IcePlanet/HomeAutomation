@@ -5,6 +5,7 @@ Switch HOME_AWAY "Away" <lock> (gS_TRIGGER_ALL) // ON:away; OFF:home
 Group gHOME_AWAYxTRIGGER "Items triggered by home/away change"
 Switch DAY_NIGHT "Day" <sun> // ON:day; OFF:night
 Group gDAY_NIGHTxTRIGGER "Items triggered by day/night change" // it is not included in auto trigger (not member of gS_TRIGGER_ALL, as there is different triggering for day to night transition)
+Group gNIGHT_TO_DAYxTRIGGER "Items triggered by night to day change"
 
 // TIMER TRIGGER
 Switch MAIN_TIMER_TRIGGER "Timer" <switch> // As we have only one trigger, we need to re-process the queue each time
@@ -28,7 +29,7 @@ Group gFF_Peter "Peter" <firstfloor> (gFF)
 // WHEN ADDING ITEMS DO NOT FORGET TO SETUP INIT VALUES IN STARTUP SECTION OF RULES
 
 Rollershutter Z1_S_PETER_BIGx11x1 "Peter dvere" <blinds> (gFF_Peter, gZO, gZ_ALL, gZ_South)
-Switch Z1_S_PETER_BIGxTRIGGER "Trigger to start automatic recalculation" (gS_light_southffxTRIGGER, gHOME_AWAYxTRIGGER, gS_light_southffxTRIGGER)
+Switch Z1_S_PETER_BIGxTRIGGER "Trigger to start automatic recalculation" (gS_light_southffxTRIGGER, gHOME_AWAYxTRIGGER, gNIGHT_TO_DAYxTRIGGER)
 Switch Z1_S_PETER_BIGxDAY_NIGHT_TRIGGER "Trigger to start on night start" (gDAY_NIGHTxTRIGGER)
 DateTime Z1_S_PETER_BIGxLastRunTime "Last run time"
 Number Z1_S_PETER_BIGxLastRunDirection "Last run direction for manual command 0:Stop; 1:DOWN; 2:UP for automated command it is always +10"

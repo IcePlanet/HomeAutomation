@@ -16,7 +16,7 @@ rule "Startup"
     System started
   then
     logInfo ("STARTUP", "System Starting from startup rule "+HOME_AWAY.state)
-    if (HOME_AWAY.state == OFF) { logInfo ("STARTUP", "It is off") }
+    //if (HOME_AWAY.state == OFF) { logInfo ("STARTUP", "It is off") }
     if ( AUTO_MODE.state == NULL ) { AUTO_MODE.postUpdate(0) } // The default auto mode is neutral
     if ( S_light_southffxDarkTreshold.state == NULL ) { S_light_southffxDarkTreshold.postUpdate(sensor_default_dark) }
     if ( S_light_southffxSunshineTreshold.state == NULL ) { S_light_southffxSunshineTreshold.postUpdate(sensor_default_sunshine) }
@@ -110,6 +110,115 @@ rule "Sensor triggers"
     local_tiggered_group_item.getMembers.forEach [i | i.sendCommand (ON) ]
 end
 
+rule "Day to night triggers"
+  when 
+    Item DAY_NIGHT changed from ON to OFF
+  then 
+    logInfo("Rollershutter", "Transition from day to night"  )
+    gDAY_NIGHTxTRIGGER.getMembers.forEach [i | i.sendCommand (ON) ]
+end
+
+rule "Night to day triggers"
+  when 
+    Item DAY_NIGHT changed from OFF to ON
+  then 
+    logInfo("Rollershutter", "Transition from night to day"  )
+    gNIGHT_TO_DAYxTRIGGER.getMembers.forEach [i | i.sendCommand (ON) ]
+end
+
+rule "Day to night re-calculation"
+  when
+    Member of gDAY_NIGHTxTRIGGER received command ON
+  then
+    try {
+      auto_runner_lock.lock()
+      val String local_split_part0 = triggeringItem.name.toString.split("x").get(0)
+      val local_auto_manual = ScriptServiceUtil.getItemRegistry.getItem(local_split_part0 + "xAutoManual") as NumberItem
+      val local_auto_mode = ScriptServiceUtil.getItemRegistry.getItem(local_split_part0 + "xCoolingHeating") as NumberItem
+      val local_door_protect = ScriptServiceUtil.getItemRegistry.getItem(local_split_part0 + "xDoorProtect") as NumberItem
+      val local_rain_protect = ScriptServiceUtil.getItemRegistry.getItem(local_split_part0 + "xRainProtect") as NumberItem
+      val local_cooling_allowed = ScriptServiceUtil.getItemRegistry.getItem(local_split_part0 + "xCoolingAllowed") as NumberItem
+      val local_arduino_id = ScriptServiceUtil.getItemRegistry.getItem(local_split_part0 + "xArduinoID") as NumberItem
+      val local_engine_id = ScriptServiceUtil.getItemRegistry.getItem(local_split_part0 + "xEngineID") as NumberItem
+      val local_last_run_time = new DateTime(ScriptServiceUtil.getItemRegistry.getItem(local_split_part0 + "xLastRunTime").state.toString)
+      val local_last_run_direction = ScriptServiceUtil.getItemRegistry.getItem(local_split_part0 + "xLastRunDirection") as NumberItem
+      val local_RAIN = ScriptServiceUtil.getItemRegistry.getItem("S_rain_southffxRAIN") as NumberItem
+      var local_calculated_run_direction = 0 // We can safelly use 0 as run direction is never calculated to stop
+      var local_new_run_direction = 0 // We can safelly use 0 as run direction is never calculated to stop
+      var local_clean_chn = 0
+      // Check if we have all variables
+      logInfo("Rollershutter", "Day to night transition " + local_split_part0 + " received " + receivedCommand )
+      triggeringItem.postUpdate(OFF)
+      logInfo("DEBUG", "Values: AUTO_MANUAL:"+AUTO_MANUAL.state+" local_auto_manual:"+local_auto_manual.state+" AUTO_MODE:"+AUTO_MODE.state+" local_auto_mode:"+local_auto_mode.state+" HOME_AWAY:"+HOME_AWAY.state+" DAY_NIGHT:"+DAY_NIGHT.state+" local_RAIN:"+local_RAIN.state+" local_door_protect:"+local_door_protect.state+" local_rain_protect:"+local_rain_protect.state+" local_cooling_allowed:"+local_cooling_allowed.state+" local_last_run_time:"+local_last_run_time+" local_last_run_direction:"+local_last_run_direction.state)
+      if ( ((AUTO_MANUAL.state != NULL) || (local_auto_manual.state != NULL)) && ((AUTO_MODE.state != NULL) || (local_auto_mode.state != NULL)) && (HOME_AWAY.state != NULL) && (DAY_NIGHT.state != NULL) && (local_RAIN.state != NULL) && (local_door_protect.state != NULL) && (local_rain_protect.state != NULL) && (local_cooling_allowed.state != NULL) && (local_arduino_id.state != NULL) && (local_engine_id.state != NULL) ) {
+        if ( ((local_auto_manual.state == NULL) && (AUTO_MANUAL.state == ON)) || (local_auto_manual.state as Number == 1) || ((local_auto_manual.state as Number == 9) && (AUTO_MANUAL.state == ON))) { // Auto mode enabled
+          // Calculate direction
+          if (((local_auto_mode.state == NULL) || (local_auto_mode.state as Number == 9)) && (AUTO_MODE.state != NULL)) { local_clean_chn = AUTO_MODE.state}
+          else { if ((local_auto_mode.state as Number == 0) || (local_auto_mode.state as Number == 1) || (local_auto_mode.state as Number == 2)) { local_clean_chn = local_auto_mode.state } }
+          // No cooling allowed
+          if (local_cooling_allowed.state as Number == 0) { local_calculated_run_direction = 1 }
+          // Cooling allowed, but heating or neutral mode set
+          if ((local_cooling_allowed.state as Number == 1) && (local_clean_chn.state as Number != 2) ) { local_calculated_run_direction = 1 }
+           // Cooling allowed, cooling mode, dry
+          if ((local_cooling_allowed.state as Number == 1) && (local_clean_chn.state as Number == 2) && (local_RAIN.state as Number == 0) ) { local_calculated_run_direction = 2 }
+          // Cooling allowed, cooling mode, raining
+          if ((local_cooling_allowed.state as Number == 1) && (local_clean_chn.state as Number == 2) && (local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 1) ) { local_calculated_run_direction = 1 }
+          if ((local_cooling_allowed.state as Number == 1) && (local_clean_chn.state as Number == 2) && (local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0) ) { local_calculated_run_direction = 2 }
+          // Check calculated direction against last direction and against manual run
+          if (local_last_run_direction.state == NULL) { local_new_run_direction = local_calculated_run_direction }
+          else {  // Last direction is not NULL 
+            if (local_calculated_run_direction > 0) { // Calculation result in requested movement
+              if ((local_calculated_run_direction == 1) && ((local_last_run_direction.state as Number == 12) || (local_last_run_direction.state as Number == 2)) ) {local_new_run_direction = local_calculated_run_direction}
+              if ((local_calculated_run_direction == 2) && ((local_last_run_direction.state as Number == 11) || (local_last_run_direction.state as Number == 1)) ) {local_new_run_direction = local_calculated_run_direction}
+            } // Calculation result in requested movement
+          } // Last direction is not NULL 
+          // START MOTOR
+          logInfo("Rollershutter", local_split_part0+" last run was "+local_last_run_direction.state+" calculated run "+local_calculated_run_direction+" new run "+local_new_run_direction)
+          if (local_new_run_direction > 0) { // We have new run direction
+            val local_run_time = now.toString
+            val local_max_last_run_time = now.minusMinutes(default_lockout_time)
+            if (local_max_last_run_time.isBefore (local_last_run_time)) {
+              logInfo("DEBUG", "Last run check failed queing "+local_last_run_time+"min item: "+local_split_part0)
+              timer_queue = timer_queue + triggeringItem.name.toString + "-"
+              if (timer_main === null) { 
+                logInfo("DEBUG", "Starting timer for "+default_lockout_time+"min item: "+local_split_part0)
+                timer_main = createTimer(now.plusMinutes(default_lockout_time), [|
+                  MAIN_TIMER_TRIGGER.sendCommand(ON)
+                ]) // Timer creation
+              } // start timer
+            } // Timeout not yet expired
+            else { // Execute command, there is no timeout issue, no trigger needed
+              try { // Try block for arduino writer lock
+                logInfo("DEBUG", "Executing Arduino "+local_arduino_id.state+" engine "+ local_engine_id.state + " direction "+local_new_run_direction+" time "+local_run_time)
+                arduino_writer.lock()
+                if (local_new_run_direction == 1) {
+                  //ARDUINO_SEND_Args.sendCommand(local_arduino_id.state + " " + local_engine_id.state +" 1")
+                  //ARDUINO_SEND.sendCommand(ON)
+                  postUpdate (local_split_part0 + "xLastRunDirection","11")
+                  postUpdate (local_split_part0 + "xLastRunTime", local_run_time)
+                  logInfo("Rollershutter", "Rollershutter " + local_split_part0 + " sent " + local_arduino_id.state + " " + local_engine_id.state +" 1" )
+                }
+                if (local_new_run_direction == 2) {
+                  //ARDUINO_SEND_Args.sendCommand(local_arduino_id.state + " " + local_engine_id.state +" 2")
+                  //ARDUINO_SEND.sendCommand(ON)
+                  postUpdate (local_split_part0 + "xLastRunDirection","12")
+                  postUpdate (local_split_part0 + "xLastRunTime", local_run_time)
+                  logInfo("Rollershutter", "Rollershutter " + local_split_part0 + " sent " + local_arduino_id.state + " " + local_engine_id.state +" 2" )
+                }
+              }catch(Throwable t) {}
+              finally {
+                  arduino_writer.unlock()
+              }
+            } // Execute command, there is no timeout issue, no trigger needed
+          } // We have new run direction
+        } // Auto mode enabled
+      } // All variables exists
+    }catch(Throwable t) {}
+    finally {
+        auto_runner_lock.unlock()
+    } //finally
+end
+
 rule "South side re-calculation"
   when
     Member of gS_light_southffxTRIGGER received command ON
@@ -132,68 +241,61 @@ rule "South side re-calculation"
       var local_calculated_run_direction = 0 // We can safelly use 0 as run direction is never calculated to stop
       var local_new_run_direction = 0 // We can safelly use 0 as run direction is never calculated to stop
       var local_clean_chn = 0
-      // TODO delete next line
-      val local_stupid_variable = null
       // Check if we have all variables
       logInfo("Rollershutter", "SouthSide recalc " + local_split_part0 + " received " + receivedCommand )
       triggeringItem.postUpdate(OFF)
       logInfo("DEBUG", "Values: AUTO_MANUAL:"+AUTO_MANUAL.state+" local_auto_manual:"+local_auto_manual.state+" AUTO_MODE:"+AUTO_MODE.state+" local_auto_mode:"+local_auto_mode.state+" HOME_AWAY:"+HOME_AWAY.state+" DAY_NIGHT:"+DAY_NIGHT.state+" local_SLD:"+local_SLD.state+" local_RAIN:"+local_RAIN.state+" local_plants:"+local_plants.state+" local_door_protect:"+local_door_protect.state+" local_rain_protect:"+local_rain_protect.state+" local_cooling_allowed:"+local_cooling_allowed.state+" local_last_run_time:"+local_last_run_time+" local_last_run_direction:"+local_last_run_direction.state)
-      if ( ((AUTO_MANUAL.state != NULL) || (local_auto_manual.state !=NULL)) && ((AUTO_MODE.state != NULL) || (local_auto_mode.state != NULL)) && (HOME_AWAY.state != NULL) && (DAY_NIGHT.state != NULL) && (local_SLD.state != NULL) && (local_RAIN.state != NULL) && (local_plants.state != NULL) && (local_door_protect.state != NULL) && (local_rain_protect.state != NULL) && (local_cooling_allowed.state != NULL) && (local_arduino_id.state != NULL) && (local_engine_id.state != NULL) ) {
-        if ( ((local_auto_manual.state == NULL) && (AUTO_MANUAL.state == ON)) || (local_auto_manual.state == 1) || ((local_auto_manual.state == 9) && (AUTO_MANUAL.state == ON))) { // Auto mode enabled
+      if ( ((AUTO_MANUAL.state != NULL) || (local_auto_manual.state != NULL)) && ((AUTO_MODE.state != NULL) || (local_auto_mode.state != NULL)) && (HOME_AWAY.state != NULL) && (DAY_NIGHT.state != NULL) && (local_SLD.state != NULL) && (local_RAIN.state != NULL) && (local_plants.state != NULL) && (local_door_protect.state != NULL) && (local_rain_protect.state != NULL) && (local_cooling_allowed.state != NULL) && (local_arduino_id.state != NULL) && (local_engine_id.state != NULL) ) {
+        if ( ((local_auto_manual.state == NULL) && (AUTO_MANUAL.state == ON)) || (local_auto_manual.state as Number == 1) || ((local_auto_manual.state as Number == 9) && (AUTO_MANUAL.state == ON))) { // Auto mode enabled
           // Calculate direction
-          if (((local_auto_mode.state == NULL) || (local_auto_mode.state == 9)) && (AUTO_MODE.state != NULL)) { local_clean_chn = AUTO_MODE.state}
-          if ((local_auto_mode.state == 0) || (local_auto_mode.state == 1) || (local_auto_mode.state == 2)) { local_clean_chn = local_auto_mode.state }
+          if (((local_auto_mode.state == NULL) || (local_auto_mode.state as Number == 9)) && (AUTO_MODE.state != NULL)) { local_clean_chn = AUTO_MODE.state}
+          else { if ((local_auto_mode.state as Number == 0) || (local_auto_mode.state as Number == 1) || (local_auto_mode.state as Number == 2)) { local_clean_chn = local_auto_mode.state } }
           // Raining and rain protection activated
-          if ((local_RAIN.state == 1) && (local_rain_protect.state == 1) && (local_door_protect.state == 1) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 1 }
-          if ((local_RAIN.state == 1) && (local_rain_protect.state == 1) && (local_door_protect.state == 0) && (DAY_NIGHT.state == OFF) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 1 }
-          if ((local_RAIN.state == 1) && (local_rain_protect.state == 1) && (local_door_protect.state == 0) && (DAY_NIGHT.state == ON) ) { local_calculated_run_direction = 1 }
+          if ((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 1) && (local_door_protect.state as Number == 1) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 1 }
+          if ((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 1) && (local_door_protect.state as Number == 0) && (DAY_NIGHT.state == OFF) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 1 }
+          if ((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 1) && (local_door_protect.state as Number == 0) && (DAY_NIGHT.state == ON) ) { local_calculated_run_direction = 1 }
           // dry or (Raining, no rain protection), dark, cooling not allowed
-          if ((((local_RAIN.state == 1) && (local_rain_protect.state == 0)) || (local_RAIN.state == 0)) && (local_SLD.state == 2) && (local_cooling_allowed.state == 0) && (local_door_protect.state == 1) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 1 }
-          if ((((local_RAIN.state == 1) && (local_rain_protect.state == 0)) || (local_RAIN.state == 0)) && (local_SLD.state == 2) && (local_cooling_allowed.state == 0) && (local_door_protect.state == 0) && (DAY_NIGHT.state == OFF) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 1 }
-          if ((((local_RAIN.state == 1) && (local_rain_protect.state == 0)) || (local_RAIN.state == 0)) && (local_SLD.state == 2) && (local_cooling_allowed.state == 0) && (local_door_protect.state == 0) && (DAY_NIGHT.state == ON) ) { local_calculated_run_direction = 1 }
+          if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 2) && (local_cooling_allowed.state as Number == 0) && (local_door_protect.state as Number == 1) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 1 }
+          if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 2) && (local_cooling_allowed.state as Number == 0) && (local_door_protect.state as Number == 0) && (DAY_NIGHT.state == OFF) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 1 }
+          if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 2) && (local_cooling_allowed.state as Number == 0) && (local_door_protect.state as Number == 0) && (DAY_NIGHT.state == ON) ) { local_calculated_run_direction = 1 }
           // dry or (Raining, no rain protection), dark, cooling allowed, heating or neutral set
-          if ((((local_RAIN.state == 1) && (local_rain_protect.state == 0)) || (local_RAIN.state == 0)) && (local_SLD.state == 2) && (local_cooling_allowed.state == 1) && ((local_clean_chn == 0) || (local_clean_chn == 1)) && (local_door_protect.state == 1) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 1 }
-          if ((((local_RAIN.state == 1) && (local_rain_protect.state == 0)) || (local_RAIN.state == 0)) && (local_SLD.state == 2) && (local_cooling_allowed.state == 1) && ((local_clean_chn == 0) || (local_clean_chn == 1)) && (local_door_protect.state == 0) && (DAY_NIGHT.state == OFF) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 1 }
-          logInfo("DEBUG", "TEST1")
-          if ((((local_RAIN.state == 1) && (local_rain_protect.state == 0)) || (local_RAIN.state == 0)) && (local_SLD.state == 2) && (local_cooling_allowed.state == 1) && ((local_clean_chn == 0) || (local_clean_chn == 1)) && (local_door_protect.state == 0) && (DAY_NIGHT.state == ON) ) { local_calculated_run_direction = 1 }
+          if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 2) && (local_cooling_allowed.state as Number == 1) && ((local_clean_chn as Number == 0) || (local_clean_chn as Number == 1)) && (local_door_protect.state as Number == 1) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 1 }
+          if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 2) && (local_cooling_allowed.state as Number == 1) && ((local_clean_chn as Number == 0) || (local_clean_chn as Number == 1)) && (local_door_protect.state as Number == 0) && (DAY_NIGHT.state == OFF) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 1 }
+          if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 2) && (local_cooling_allowed.state as Number == 1) && ((local_clean_chn as Number == 0) || (local_clean_chn as Number == 1)) && (local_door_protect.state as Number == 0) && (DAY_NIGHT.state == ON) ) { local_calculated_run_direction = 1 }
           // dry or (Raining, no rain protection), dark, cooling allowed, cooling set
-          if ((((local_RAIN.state == 1) && (local_rain_protect.state == 0)) || (local_RAIN.state == 0)) && (local_SLD.state == 2) && (local_cooling_allowed.state == 1) && (local_clean_chn == 2) && (DAY_NIGHT.state == OFF) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 2 }
-          if ((((local_RAIN.state == 1) && (local_rain_protect.state == 0)) || (local_RAIN.state == 0)) && (local_SLD.state == 2) && (local_cooling_allowed.state == 1) && (local_clean_chn == 2) && (DAY_NIGHT.state == ON) ) { local_calculated_run_direction = 2 }
+          if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 2) && (local_cooling_allowed.state as Number == 1) && (local_clean_chn as Number == 2) && (DAY_NIGHT.state == OFF) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 2 }
+          if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 2) && (local_cooling_allowed.state as Number == 1) && (local_clean_chn as Number == 2) && (DAY_NIGHT.state == ON) ) { local_calculated_run_direction = 2 }
           // dry or (Raining, no rain protection), Light, neutral, home
-          if ((((local_RAIN.state == 1) && (local_rain_protect.state == 0)) || (local_RAIN.state == 0)) && (local_SLD.state == 1) && (local_clean_chn == 0) && (HOME_AWAY.state == OFF) && (DAY_NIGHT.state == ON) ) { local_calculated_run_direction = 2 }
+          if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 1) && (local_clean_chn as Number == 0) && (HOME_AWAY.state == OFF) && (DAY_NIGHT.state == ON) ) { local_calculated_run_direction = 2 }
           // dry or (Raining, no rain protection), Light, neutral, away
-          if ((((local_RAIN.state == 1) && (local_rain_protect.state == 0)) || (local_RAIN.state == 0)) && (local_SLD.state == 1) && (local_clean_chn == 0) && (HOME_AWAY.state == ON) && (local_plants.state == 1) ) { local_calculated_run_direction = 2 }
-          if ((((local_RAIN.state == 1) && (local_rain_protect.state == 0)) || (local_RAIN.state == 0)) && (local_SLD.state == 1) && (local_clean_chn == 0) && (HOME_AWAY.state == ON) && (local_plants.state == 0) ) { local_calculated_run_direction = 1 }
+          if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 1) && (local_clean_chn as Number == 0) && (HOME_AWAY.state == ON) && (local_plants.state as Number == 1) ) { local_calculated_run_direction = 2 }
+          if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 1) && (local_clean_chn as Number == 0) && (HOME_AWAY.state == ON) && (local_plants.state as Number == 0) ) { local_calculated_run_direction = 1 }
           // dry or (Raining, no rain protection), Light, cooling or heating
-          logInfo("DEBUG", "TEST2")
-          if ((((local_RAIN.state == 1) && (local_rain_protect.state == 0)) || (local_RAIN.state == 0)) && (local_SLD.state == 1) && ((local_clean_chn == 2) || (local_clean_chn == 1)) && (local_plants.state == 1) && (DAY_NIGHT.state == OFF) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 2 }
-          if ((((local_RAIN.state == 1) && (local_rain_protect.state == 0)) || (local_RAIN.state == 0)) && (local_SLD.state == 1) && ((local_clean_chn == 2) || (local_clean_chn == 1)) && (local_plants.state == 1) && (DAY_NIGHT.state == ON) ) { local_calculated_run_direction = 2 }
-          if ((((local_RAIN.state == 1) && (local_rain_protect.state == 0)) || (local_RAIN.state == 0)) && (local_SLD.state == 1) && ((local_clean_chn == 2) || (local_clean_chn == 1)) && (local_plants.state == 0)  && (local_door_protect.state == 1) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 1 }
-          logInfo("DEBUG", "TEST2.3")
-          if ((((local_RAIN.state == 1) && (local_rain_protect.state == 0)) || (local_RAIN.state == 0)) && (local_SLD.state == 1) && ((local_clean_chn == 2) || (local_clean_chn == 1)) && (local_plants.state == 0)  && (local_door_protect.state == 0) && (DAY_NIGHT.state == OFF) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 1 }
-          logInfo("DEBUG", "TEST2.3.1")
-          if ((((local_RAIN.state == 1) && (local_rain_protect.state == 0)) || (local_RAIN.state == 0)) && (local_SLD.state == 1) && ((local_clean_chn == 2) || (local_clean_chn == 1)) && (local_plants.state == 0)  && (local_door_protect.state == 0) && (DAY_NIGHT.state == ON) ) { local_calculated_run_direction = 1 }
+          if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 1) && ((local_clean_chn as Number == 2) || (local_clean_chn as Number == 1)) && (local_plants.state as Number == 1) && (DAY_NIGHT.state == OFF) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 2 }
+          if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 1) && ((local_clean_chn as Number == 2) || (local_clean_chn as Number == 1)) && (local_plants.state as Number == 1) && (DAY_NIGHT.state == ON) ) { local_calculated_run_direction = 2 }
+          if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 1) && ((local_clean_chn as Number == 2) || (local_clean_chn as Number == 1)) && (local_plants.state as Number == 0)  && (local_door_protect.state as Number == 1) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 1 }
+          if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 1) && ((local_clean_chn as Number == 2) || (local_clean_chn as Number == 1)) && (local_plants.state as Number == 0)  && (local_door_protect.state as Number == 0) && (DAY_NIGHT.state == OFF) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 1 }
+          if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 1) && ((local_clean_chn as Number == 2) || (local_clean_chn as Number == 1)) && (local_plants.state as Number == 0)  && (local_door_protect.state as Number == 0) && (DAY_NIGHT.state == ON) ) { local_calculated_run_direction = 1 }
           // dry or (Raining, no rain protection), Sun, neutral or heating
-          logInfo("DEBUG", "TEST2.3.2:"+"local_RAIN="+local_RAIN.state+" local_rain_protect="+local_rain_protect.state+" local_RAIN="+local_RAIN.state+" local_SLD="+local_SLD.state+" local_clean_chn="+local_clean_chn+" HOME_AWAY="+HOME_AWAY.state+" DAY_NIGHT="+DAY_NIGHT.state+" local_calculated_run_direction="+local_calculated_run_direction+" local_stupid_variable"+local_stupid_variable+".")
-          if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 0) && ((local_clean_chn as Number == 2) || (local_clean_chn as Number == 0)) && (HOME_AWAY.state as Switch == OFF) && (DAY_NIGHT.state as Switch == ON) ) { local_calculated_run_direction = 2 }
-//          if ((((local_RAIN.state == 1) && (local_rain_protect.state == 0)) || (local_RAIN.state == 0)) && (local_SLD.state == 0) ) { local_calculated_run_direction = 2 }
-          logInfo("DEBUG", "TEST2.5")
-          if ((((local_RAIN.state == 1) && (local_rain_protect.state == 0)) || (local_RAIN.state == 0)) && (local_SLD.state == 0) && ((local_clean_chn == 2) || (local_clean_chn == 0)) && (HOME_AWAY.state == ON) && (local_plants.state == 1) ) { local_calculated_run_direction = 2 }
-          if ((((local_RAIN.state == 1) && (local_rain_protect.state == 0)) || (local_RAIN.state == 0)) && (local_SLD.state == 0) && ((local_clean_chn == 2) || (local_clean_chn == 0)) && (HOME_AWAY.state == ON) && (local_plants.state == 0) ) { local_calculated_run_direction = 1 }
+          //logInfo("DEBUG", "TEST2.3.2:"+"local_RAIN="+local_RAIN.state+" local_rain_protect="+local_rain_protect.state+" local_RAIN="+local_RAIN.state+" local_SLD="+local_SLD.state+" local_clean_chn="+local_clean_chn+" HOME_AWAY="+HOME_AWAY.state+" DAY_NIGHT="+DAY_NIGHT.state+" local_calculated_run_direction="+local_calculated_run_direction+" local_stupid_variable"+local_stupid_variable+".")
+          if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 0) && ((local_clean_chn as Number == 2) || (local_clean_chn as Number == 0)) && (HOME_AWAY.state == OFF) && (DAY_NIGHT.state == ON) ) { local_calculated_run_direction = 2 }
+          if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 0) && ((local_clean_chn as Number == 2) || (local_clean_chn as Number == 0)) && (HOME_AWAY.state == ON) && (local_plants.state as Number == 1) ) { local_calculated_run_direction = 2 }
+          if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 0) && ((local_clean_chn as Number == 2) || (local_clean_chn as Number == 0)) && (HOME_AWAY.state == ON) && (local_plants.state as Number == 0) ) { local_calculated_run_direction = 1 }
           // dry or (Raining, no rain protection), Sun, cooling
-           logInfo("DEBUG", "TEST2.7 ")
-         if ((((local_RAIN.state == 1) && (local_rain_protect.state == 0)) || (local_RAIN.state == 0)) && (local_SLD.state == 0) && (local_clean_chn == 1) && (local_door_protect.state == 1) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 1 }
-          if ((((local_RAIN.state == 1) && (local_rain_protect.state == 0)) || (local_RAIN.state == 0)) && (local_SLD.state == 0) && (local_clean_chn == 1) && (local_door_protect.state == 0) && (DAY_NIGHT.state == OFF) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 1 }
-          if ((((local_RAIN.state == 1) && (local_rain_protect.state == 0)) || (local_RAIN.state == 0)) && (local_SLD.state == 0) && (local_clean_chn == 1) && (local_door_protect.state == 0) && (DAY_NIGHT.state == ON) ) { local_calculated_run_direction = 1 }
+          if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 0) && (local_clean_chn as Number == 1) && (local_door_protect.state as Number == 1) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 1 }
+          if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 0) && (local_clean_chn as Number == 1) && (local_door_protect.state as Number == 0) && (DAY_NIGHT.state == OFF) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 1 }
+          if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 0) && (local_clean_chn as Number == 1) && (local_door_protect.state as Number == 0) && (DAY_NIGHT.state == ON) ) { local_calculated_run_direction = 1 }
           // Check calculated direction against last direction and against manual run
-          logInfo("DEBUG", "TEST3")
           if (local_last_run_direction.state == NULL) { local_new_run_direction = local_calculated_run_direction }
           else {  // Last direction is not NULL 
             if (local_calculated_run_direction > 0) { // Calculation result in requested movement
-              if (local_calculated_run_direction == local_last_run_direction.state) { postUpdate (local_split_part0 + "xLastRunDirection", (local_calculated_run_direction + 10)) } // If automation wants to go the same direction as last manual action switch back to automation
+              if (local_calculated_run_direction == local_last_run_direction.state as Number) {
+                if (local_calculated_run_direction == 1) { postUpdate (local_split_part0 + "xLastRunDirection", "11") } // If automation wants to go the same direction as last manual action switch back to automation
+                if (local_calculated_run_direction == 2) { postUpdate (local_split_part0 + "xLastRunDirection", "12") } // If automation wants to go the same direction as last manual action switch back to automation
+              }
               else {
-                if ((local_calculated_run_direction == 1) && (local_last_run_direction.state == 12) ) {local_new_run_direction = local_calculated_run_direction}
-                if ((local_calculated_run_direction == 2) && (local_last_run_direction.state == 11) ) {local_new_run_direction = local_calculated_run_direction}
+                if ((local_calculated_run_direction == 1) && (local_last_run_direction.state as Number == 12) ) {local_new_run_direction = local_calculated_run_direction}
+                if ((local_calculated_run_direction == 2) && (local_last_run_direction.state as Number == 11) ) {local_new_run_direction = local_calculated_run_direction}
               }
             } // Calculation result in requested movement
           } // Last direction is not NULL 
@@ -213,23 +315,31 @@ rule "South side re-calculation"
               } // start timer
             } // Timeout not yet expired
             else { // Execute command, there is no timeout issue, no trigger needed
-              logInfo("DEBUG", "Executing Arduino "+local_arduino_id.state+" engine "+ local_engine_id.state + " direction "+local_new_run_direction+" time "+local_run_time)
-              if (local_new_run_direction == 1) {
-                //ARDUINO_SEND_Args.sendCommand(local_arduino_id.state + " " + local_engine_id.state +" 1")
-                //ARDUINO_SEND.sendCommand(ON)
-                postUpdate (local_split_part0 + "xLastRunDirection",11)
-                postUpdate (local_split_part0 + "xLastRunTime", local_run_time)
-              }
-              if (local_new_run_direction == 2) {
-                //ARDUINO_SEND_Args.sendCommand(local_arduino_id.state + " " + local_engine_id.state +" 2")
-                //ARDUINO_SEND.sendCommand(ON)
-                postUpdate (split_part0 + "xLastRunDirection",12)
-                postUpdate (split_part0 + "xLastRunTime", local_run_time)
+              try { // Try block for arduino writer lock
+                logInfo("DEBUG", "Executing Arduino "+local_arduino_id.state+" engine "+ local_engine_id.state + " direction "+local_new_run_direction+" time "+local_run_time)
+                arduino_writer.lock()
+                if (local_new_run_direction == 1) {
+                  //ARDUINO_SEND_Args.sendCommand(local_arduino_id.state + " " + local_engine_id.state +" 1")
+                  //ARDUINO_SEND.sendCommand(ON)
+                  postUpdate (local_split_part0 + "xLastRunDirection","11")
+                  postUpdate (local_split_part0 + "xLastRunTime", local_run_time)
+                  logInfo("Rollershutter", "Rollershutter " + local_split_part0 + " sent " + local_arduino_id.state + " " + local_engine_id.state +" 1" )
+                }
+                if (local_new_run_direction == 2) {
+                  //ARDUINO_SEND_Args.sendCommand(local_arduino_id.state + " " + local_engine_id.state +" 2")
+                  //ARDUINO_SEND.sendCommand(ON)
+                  postUpdate (local_split_part0 + "xLastRunDirection","12")
+                  postUpdate (local_split_part0 + "xLastRunTime", local_run_time)
+                  logInfo("Rollershutter", "Rollershutter " + local_split_part0 + " sent " + local_arduino_id.state + " " + local_engine_id.state +" 2" )
+                }
+              }catch(Throwable t) {}
+              finally {
+                  arduino_writer.unlock()
               }
             } // Execute command, there is no timeout issue, no trigger needed
           } // We have new run direction
         } // Auto mode enabled
-      } // All varialbes exists
+      } // All variables exists
     }catch(Throwable t) {}
     finally {
         auto_runner_lock.unlock()
