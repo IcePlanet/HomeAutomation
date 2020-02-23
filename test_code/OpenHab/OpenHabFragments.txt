@@ -25,6 +25,17 @@ rule "Manual rollershutter run"
     }
 end
 
+var HashMap<String, HashMap<String, Object>> EngineConfig = newHashMap(
+//var EngineConfig = newHashMap(
+    "Z1_S_PETER_BIG" -> (newHashMap(
+            "Commander_id"        -> 11 as Integer, // Remote commander block controling engine
+            "Engine_id"        -> 1 as Integer, // Engine number on given commander
+            "Timer"    -> null as Timer // Timer to prevent too frequent changes
+//            "LastRun" -> now.minusMinutes(1024) as DateTimeType, // Time of last run
+//            "LastManualOrder" -> 10 as Integer, // Last manual order for automation detection, 0=STOP; 1=DOWN; 2=UP; 10=NONE
+//            "locked_after_manual_run" -> 33 as Integer // Time in minutes that it is locked after last run
+        ))
+)
 
 #Rollershutter ZaluziePeter "Petova izba zaluzie" (zaluzie_all, zaluzie1) {exec="STOP:/usr/share/openhab/bin/enqueue.sh 10 1 0, DOWN:/usr/share/openhab/bin/enqueue.sh 10 1 1, UP:/usr/share/openhab/bin/enqueue.sh 10 1 2"}
 
