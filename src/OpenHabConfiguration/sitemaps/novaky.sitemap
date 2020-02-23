@@ -1,5 +1,11 @@
 sitemap novaky label="Doma"
 {
+        Frame label="Main" {
+                Switch item=AUTO_MANUAL
+                Switch item=DAY_NIGHT
+                Switch item=HOME_AWAY
+                Switch item=AUTO_MODE mappings=[0="Neutral", 1="Heating", 2="Cooling"]
+        }
         Frame label="Locations" {
                 Group item=gGF
                 Group item=gFF
@@ -10,12 +16,10 @@ sitemap novaky label="Doma"
                 Switch  item=STOP_ALL mappings=[ON="STOP ALL"]
         }
         Frame label="Settings" {
-                Switch item=AUTO_MANUAL
-                Switch item=AUTO_MODE mappings=[0="Neutral", 1="Heating", 2="Cooling"]
-                Switch item=HOME_AWAY
                 Switch item=S_light_southffxSLD mappings=[0="Sun", 1="Light", 2="Dark"]
                 Setpoint item=S_light_southffxDarkTreshold minValue=0 maxValue=255 step=5
                 Setpoint item=S_light_southffxSunshineTreshold minValue=0 maxValue=255 step=5
+                Setpoint item=S_light_southffxHysteresis minValue=0 maxValue=50 step=1
         }
         Frame label="TEST" {
                 Switch  item=vent_niveau_3 mappings=[ON="TEST"]

@@ -4,21 +4,8 @@
 
 #include "CommonAutomation.h"
 #include "/usr/local/include/RF24/RF24.h"
-#include <stdarg.h>
-#include <sys/socket.h> /* socket, connect */
-#include <arpa/inet.h>
-#include <netinet/in.h> /* struct sockaddr_in, struct sockaddr */
-#include <netinet/tcp.h>
-//#include <netdb.h> /* struct hostent, gethostbyname */
 
 #include <limits.h>     /* for CHAR_BIT */
-
-#define BITMASK(b) (1 << ((b) % CHAR_BIT))
-#define BITSLOT(b) ((b) / CHAR_BIT)
-#define BITSET(a, b) ((a)[BITSLOT(b)] |= BITMASK(b))
-#define BITCLEAR(a, b) ((a)[BITSLOT(b)] &= ~BITMASK(b))
-#define BITTEST(a, b) ((a)[BITSLOT(b)] & BITMASK(b))
-#define BITNSLOTS(nb) ((nb + CHAR_BIT - 1) / CHAR_BIT)
 
 using namespace std;
 
@@ -60,9 +47,37 @@ using namespace std;
 
 /* TARGET
  *  0 - BROADCAST
+ * 11 - PETER'S ROOM BIG DOOR
  */
 
- // Broadcast ID
+// SPECIAL VERSION FOR 433 COMMANDS
+// Build using https://github.com/platenspeler/LamPI-3.x/blob/master/transmitters/livolo/livolo.cpp and https://github.com/midorineko/rpi_automation/blob/master/livolo.py and https://github.com/roidayan/LivoloPi/blob/master/livolo.cpp
+
+struct radio433_item {
+  unsigned char target; // Original target in openhab
+  unsigned char engine; // Original engine number from openhab
+  unsigned int remoteID; // Remote ID to be used for alternative sending via 433 // real remote IDs: 6400; 19303; 23783 tested "virtual" remote IDs: 10550; 8500; 7400
+  unsigned char keycodeUP; // Remote keycode to be used for alternative sending via 433 UP // keycodes #1: 0, #2: 96, #3: 120, #4: 24, #5: 80, #6: 48, #7: 108, #8: 12, #9: 72; #10: 40, #OFF: 106
+  unsigned char keycodeDOWN; // Remote keycode to be used for alternative sending via 433 DOWN // keycodes #1: 0, #2: 96, #3: 120, #4: 24, #5: 80, #6: 48, #7: 108, #8: 12, #9: 72; #10: 40, #OFF: 106
+  unsigned char keycodeSTOP; // If 0 instead of stop keycode the keycode of last command is used
+  unsigned char lastKeycode; // Last keycode send out (247 means nothing send out until now, or stop was the last command)
+};
+
+struct radio433_item radio433_list[] = {
+  { 1, 1, 7400, 24, 96, 0, 247},
+  { 1, 2, 7400, 120, 24, 0, 247},
+  { 2, 1, 7400, 80, 48, 0, 247},
+  { 2, 2, 7400, 108, 12, 0, 247},
+  { 2, 4, 7400, 72, 40, 0, 247}
+};
+
+unsigned char radio433_array_elements = (sizeof (radio433_list))/(sizeof (struct radio433_item)); 
+const char radio433_PIN_TX = 27;
+const char radio433_PIN_RX = 17;
+const char radio_433_send_repeat = 100;
+bool radio433_high = true;
+
+// Broadcast ID
 const unsigned char broadcast_id = 255;
 
 // RADIO SETTINGS
@@ -84,7 +99,7 @@ const unsigned int send_loop_cycle_wait = 10; // delay in ms during one send loo
 const unsigned int send_loop_duration = 10; //duration of send attempt in seconds
 const unsigned int send_loop_sending_duration = 30; // duration of send itself measured value
 const unsigned int send_loop_cycles = send_loop_duration * 1000 / (send_loop_cycle_wait + send_loop_sending_duration); // number of cycles needed for one send
-const unsigned int send_loop_end_sleep = 100; // delay in ms after send before next send is processed
+const unsigned int send_loop_end_sleep = 123; // delay in ms after send before next send is processed
 const unsigned int send_ack_received_delay = 1000; // delay after ack was received
 unsigned int sleep_time = send_loop_cycle_wait * 1000; // technical calculation
 
@@ -98,7 +113,7 @@ const unsigned long mask_long_ack = 128;
 const unsigned long mask_long_retransfer = mask_retransfer_send;
 
 // LOG SETTINGS
-const int log_level = 999; //Log level, the lower number the more priority log, so lower level means less messages
+const int log_level = 800; //Log level, the lower number the more priority log, so lower level means less messages
 const char* timeformat = "%Y%m%d%H%M%S";
 const bool log_to_screen = true;
 const bool log_to_syslog = false;
@@ -146,6 +161,7 @@ char * oh_tpl = (char *)"POST %s%s HTTP/1.0\r\n"
         "Content-Length: %d\r\n"
         "\r\n"
         "%s";
+
 
 int log_message (int level, int detail, const char* message, ...) {
   struct timeval tv;
@@ -378,6 +394,7 @@ int start_radio () {
     radio.powerUp ();
     radio_up = true;
   }
+  radio.setPALevel(RF24_PA_MAX); // TODO TO CHECK
   radio.startListening ();
   return 0;
 }
@@ -391,35 +408,195 @@ int stop_radio () {
   return 0;
 }
 
+// vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+// BELOW Based on LamPi-2.0/livolo from https://github.com/platenspeler/LamPI-2.0/tree/master/transmitters/livolo 
+
+// keycodes #1: 0, #2: 96, #3: 120, #4: 24, #5: 80, #6: 48, #7: 108, #8: 12, #9: 72; #10: 40, #OFF: 106
+// real remote IDs: 6400; 19303; 23783
+// tested "virtual" remote IDs: 10550; 8500; 7400
+// other IDs could work too, as long as they do not exceed 16 bit
+// known issue: not all 16 bit remote ID are valid
+// have not tested other buttons, but as there is dimmer control, some keycodes could be strictly system
+// use: sendButton(remoteID, keycode), see example blink.ino; 
+
+const int p_short = 110;									// 110 works quite OK
+const int p_long = 290;									// 300 works quite OK
+const int p_start = 520;									// 520 works quite OK
+
+void radio433_sendPulse(unsigned char txPulse) {
+  // log_message (980,1,"DEBUG 433 transmit start for %d\n", txPulse);
+	switch(txPulse) 								// transmit pulse
+	{
+	case 0: 										// Start
+		digitalWrite(radio433_PIN_TX, LOW);
+		delayMicroseconds(p_start); 				// 550
+	break;
+   
+	case 1: 										// Start
+		digitalWrite(radio433_PIN_TX, HIGH);
+		delayMicroseconds(p_start); 				// 550
+	break;
+
+	case 2: 										// "High Zero"
+		digitalWrite(radio433_PIN_TX, LOW);
+		delayMicroseconds(p_short); 				// 110
+	break;
+ 
+	case 3: 										// "High One"
+		digitalWrite(radio433_PIN_TX, LOW);
+		delayMicroseconds(p_long); 					// 303
+	break; 
+
+	case 4: 										// "Low Zero"
+		digitalWrite(radio433_PIN_TX, HIGH);
+		delayMicroseconds(p_short);					// 110
+	break;
+
+	case 5:											// "Low One"
+		digitalWrite(radio433_PIN_TX, HIGH);
+		delayMicroseconds(p_long); 					// 290
+	break; 
+	}
+  // log_message (980,1,"DEBUG 433 transmit end for %d\n", txPulse);
+}
+
+void radio433_selectPulse(unsigned char inBit) {
+    switch (inBit) {
+    case 0: 
+        if (radio433_high == true) {   						// if current pulse should be high, send High Zero
+          radio433_sendPulse(2); 
+		  radio433_sendPulse(4);
+        } else {              						// else send Low Zero
+          radio433_sendPulse(4);
+		  radio433_sendPulse(2);
+        }
+      break;
+      case 1:                						// if current pulse should be high, send High One
+        if (radio433_high == true) {
+          radio433_sendPulse(3);
+        } else {             						// else send Low One
+          radio433_sendPulse(5);
+        }
+        radio433_high=!radio433_high; 								// invert next pulse
+      break; 
+    }
+}
+
+void radio433_sendButton(unsigned int remoteID, unsigned char keycode) {
+  signed char i;
+  unsigned char pulse;
+  pinMode(radio433_PIN_TX, OUTPUT);
+  for (pulse= 0; pulse <= radio_433_send_repeat; pulse++) 		// how many times to transmit a command
+  {
+    log_message (980,1,"DEBUG 433 send pulse %d\n", pulse);
+    radio433_high = true;
+		radio433_sendPulse(1); // first pulse is always high
+    for (i = 15; i>=0; i--) { 						// transmit remoteID
+      unsigned int txPulse = remoteID & ( 1<<i );	// read bits from remote ID
+      log_message (980,1,"DEBUG 433 send pulse %d remote loop %d txpulse %d\n", pulse, i, txPulse);
+      if (txPulse>0) { 
+		radio433_selectPulse(1); 
+      }
+      else {
+		radio433_selectPulse(0);
+      }
+    }
+    for (i = 6; i>=0; i--) 							// XXX transmit keycode
+    {
+            log_message (980,1,"DEBUG 433 send pulse %d keycode loop %d\n", pulse, i);
+		unsigned char txPulse= keycode & (1<<i); 	// read bits from keycode
+		if (txPulse>0) {
+			radio433_selectPulse(1); 
+		}
+		else {
+			radio433_selectPulse(0);
+		}
+    } 
+  }
+  if (radio433_high)
+  	digitalWrite(radio433_PIN_TX, LOW);
+  else 
+  	digitalWrite(radio433_PIN_TX, HIGH);
+}
+
+// ABOVE Based on LamPi-2.0/livolo from https://github.com/platenspeler/LamPI-2.0/tree/master/transmitters/livolo 
+// ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
 unsigned long send_msg (unsigned long long_message) {
   struct timeval tv;
   unsigned long send_start;
   unsigned int i = 0;
+  unsigned int radio433_element;
+  unsigned int r433_ID = 0; // Remote ID to be used for alternative sending via 433 // real remote IDs: 6400; 19303; 23783 tested "virtual" remote IDs: 10550; 8500; 7400
+  unsigned char r433_command; // Remote keycode to be used for actual send via 433// keycodes #1: 0, #2: 96, #3: 120, #4: 24, #5: 80, #6: 48, #7: 108, #8: 12, #9: 72; #10: 40, #OFF: 106
+  unsigned char r433_up; // Remote keycode to be used for alternative sending via 433 UP // keycodes #1: 0, #2: 96, #3: 120, #4: 24, #5: 80, #6: 48, #7: 108, #8: 12, #9: 72; #10: 40, #OFF: 106
+  unsigned char r433_down; // Remote keycode to be used for alternative sending via 433 DOWN // keycodes #1: 0, #2: 96, #3: 120, #4: 24, #5: 80, #6: 48, #7: 108, #8: 12, #9: 72; #10: 40, #OFF: 106
+  unsigned char r433_stop; // If 0 instead of stop keycode the keycode of last command is used
+  unsigned char r433_last; // Last keycode send out (247 means nothing send out until now, or stop was the last command)
   bool sending = 1;
   bool ack_received = false;
   unsigned long content_ack = (long_message | mask_long_ack) ;
   unsigned long content = long_message;
   unsigned long received = 0;
+  union Frame tmp_msg; 
+  // First we need to check if there is 433 sender for this, so we need to decode (little bit of workaround but this was added later
+  tmp_msg.frame = long_message;
+  for(i = 0; i < radio433_array_elements; i++) {
+    if ((radio433_list[i].target == tmp_msg.d.target) && (radio433_list[i].engine == tmp_msg.d.payload1))
+    { // 433 to be used for this target and engine
+      r433_ID = radio433_list[i].remoteID;
+      if (tmp_msg.d.payload2 == 0) { // STOP
+        if (radio433_list[i].keycodeSTOP == 0) {
+          r433_command = radio433_list[i].lastKeycode;
+        }
+        else {
+          r433_command = radio433_list[i].keycodeSTOP;
+        }
+      } // STOP
+      else {
+        if (tmp_msg.d.payload2 == 1 ) { // DOWN
+          r433_command = radio433_list[i].keycodeDOWN;
+          radio433_list[i].lastKeycode = r433_command; 
+        } // DOWN
+        else {
+          if (tmp_msg.d.payload2 == 2 ) { // UP
+            r433_command = radio433_list[i].keycodeUP;
+            radio433_list[i].lastKeycode = r433_command; 
+          }  // UP
+        }
+      }
+      break;
+    } // 433 to be used for this target and engine
+  }
   gettimeofday (&tv,NULL);
   send_start = tv.tv_sec;
-  log_message (800,2,"%lu = Sending message %lu expected ack %lu starting at %lu\n",content, content,content_ack,tv.tv_sec);
-  do {
-    i++;
-    gettimeofday (&tv,NULL);
-    log_message (990,2,"%lu - Send attempt %u at %lu from %lu\n",content,i,tv.tv_sec,send_start);
-    radio.stopListening ();
-    radio.write (&content, sizeof (content));
-    radio.startListening ();
-    usleep (sleep_time);
-    while (radio.available ()) {
-      radio.read (&received,sizeof (unsigned long));
-      received = received | mask_long_retransfer;
-      if (received == content_ack)
-        {log_message (750,2,"%lu - Send attempt %u at %lu from %lu successfully received ack %lu\n",content,i,tv.tv_sec,send_start,received); ack_received = true; usleep (send_ack_received_delay);}
-      else {decodeMessage (received);} // TODO replace with queue processing
-    }  // while end
-  } while ((i < send_loop_cycles) && !ack_received);
-  usleep (send_loop_end_sleep);
+  if ( r433_ID == 0 ) {  // Sending via NRF
+    log_message (800,2,"%lu = Sending message %lu expected ack %lu starting at %lu\n",content, content,content_ack,tv.tv_sec);
+    i = 0;
+    do {
+      i++;
+      gettimeofday (&tv,NULL);
+      log_message (990,2,"%lu - Send attempt %u at %lu from %lu\n",content,i,tv.tv_sec,send_start);
+      radio.stopListening ();
+      radio.write (&content, sizeof (content));
+      radio.startListening ();
+      usleep (sleep_time);
+      while (radio.available ()) {
+        radio.read (&received,sizeof (unsigned long));
+        received = received | mask_long_retransfer;
+        if (received == content_ack)
+          {log_message (750,2,"%lu - Send attempt %u at %lu from %lu successfully received ack %lu\n",content,i,tv.tv_sec,send_start,received); ack_received = true; usleep (send_ack_received_delay);}
+        else {decodeMessage (received);} // TODO replace with queue processing
+      }  // while end
+    } while ((i < send_loop_cycles) && !ack_received);
+    usleep (send_loop_end_sleep);
+  } // Sending via NRF
+  else { // Sending via 433
+    log_message (800,2,"Sending 433 via ID %d and key %d to %d engine %d action %d START\n",r433_ID, r433_command,tmp_msg.d.target,tmp_msg.d.payload1,tmp_msg.d.payload2 );
+  	radio433_sendButton(r433_ID, r433_command);	
+    log_message (800,2,"Sending 433 via ID %d and key %d to %d engine %d action %d END\n",r433_ID, r433_command,tmp_msg.d.target,tmp_msg.d.payload1,tmp_msg.d.payload2 );
+    usleep (send_loop_end_sleep);
+  } // Sending via 433
 }
 
 unsigned long receive_msg (unsigned int receive_loops, unsigned long waiting_for) {
@@ -498,16 +675,11 @@ int main(int argc, char** argv) {
   if (log_to_syslog) { openlog("HomeAutomationServer", LOG_PID, LOG_USER); }
   log_message (710,1,"START SERVER FOR RF24\n");
 
-// TEST CODE START
-//  send_to_open_hab (10,2,47);
-//  exit (0);
-// TEST CODE END
-  
   empty_frame.frame = 0;
   
   start_radio ();
   log_message (770,1,"Radio started\n");
-  
+
   while (running)
   {
     read_queue_from_file ();
