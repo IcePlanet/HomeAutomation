@@ -209,10 +209,10 @@ rule "Day to night re-calculation"
           // Cooling allowed, but heating or neutral mode set
           if ((local_cooling_allowed.state as Number == 1) && (local_clean_chn.state as Number != 2) ) { local_calculated_run_direction = 1 }
            // Cooling allowed, cooling mode, dry
-          if ((local_cooling_allowed.state as Number == 1) && (local_clean_chn.state as Number == 2) && (local_RAIN.state as Number == 0) ) { local_calculated_run_direction = 2 }
+          if ((local_cooling_allowed.state as Number == 1) && (local_clean_chn.state as Number == 2) && (local_RAIN.state as Number == 0) && (HOME_AWAY.state == OFF) ) { local_calculated_run_direction = 2 }
           // Cooling allowed, cooling mode, raining
           if ((local_cooling_allowed.state as Number == 1) && (local_clean_chn.state as Number == 2) && (local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 1) ) { local_calculated_run_direction = 1 }
-          if ((local_cooling_allowed.state as Number == 1) && (local_clean_chn.state as Number == 2) && (local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0) ) { local_calculated_run_direction = 2 }
+          if ((local_cooling_allowed.state as Number == 1) && (local_clean_chn.state as Number == 2) && (local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0) && (HOME_AWAY.state == OFF) ) { local_calculated_run_direction = 2 }
           // Check calculated direction against last direction and against manual run
           if (local_last_run_direction.state == NULL) { local_new_run_direction = local_calculated_run_direction }
           else {  // Last direction is not NULL 
