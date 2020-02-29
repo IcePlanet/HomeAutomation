@@ -3,7 +3,9 @@ import org.eclipse.smarthome.model.script.ScriptServiceUtil
 //import java.util.HashMap
 
 var ReentrantLock arduino_writer = new ReentrantLock
+var ReentrantLock persistence_lock = new ReentrantLock
 var ReentrantLock auto_runner_lock = new ReentrantLock
+var Integer running_persistence_read = 0
 val Integer sensor_default_hyst = 20
 val Integer sensor_default_dark = 80
 val Integer sensor_default_sunshine = 200
@@ -16,7 +18,33 @@ rule "Startup"
     System started
   then
     logInfo ("STARTUP", "System Starting from startup rule "+HOME_AWAY.state)
-    //if (HOME_AWAY.state == OFF) { logInfo ("STARTUP", "It is off") }
+    running_persistence_read = 1
+    gPersistent.getMembers.forEach [p | 
+      if ( p.state == NULL ) {
+        try {
+          //logInfo ("Persistence", "Persistence refreshing "+p.name)
+          persistence_lock.lock()
+          PERSISTENCE_Args.sendCommand("-R -a "+p.name)
+          PERSISTENCE.sendCommand(ON)
+          while (PERSISTENCE.state == ON) {
+            Thread::sleep (500)
+          }
+          Thread::sleep (1000)
+          if ( PERSISTENCE_Out.state.toString.length > 0 ) {
+            logInfo ("Persistence", "Persistence read for "+p.name+" as "+PERSISTENCE_Out.state+" ("+PERSISTENCE_Out.state.toString.length+")")
+            p.postUpdate (PERSISTENCE_Out.state)
+          }
+          else {
+            logInfo ("Persistence", "Persistence NOT read for "+p.name+" as "+PERSISTENCE_Out.state+" ("+PERSISTENCE_Out.state.toString.length+")")
+          }
+        } catch(Throwable t) {}
+        finally {
+            persistence_lock.unlock()
+        } //finally
+      }
+    ]
+    Thread::sleep (1000)
+    running_persistence_read = 0
     if ( AUTO_MODE.state == NULL ) { AUTO_MODE.postUpdate(0) } // The default auto mode is neutral
     if ( S_light_southffxDarkTreshold.state == NULL ) { S_light_southffxDarkTreshold.postUpdate(sensor_default_dark) }
     if ( S_light_southffxSunshineTreshold.state == NULL ) { S_light_southffxSunshineTreshold.postUpdate(sensor_default_sunshine) }
@@ -33,6 +61,27 @@ rule "Startup"
     if ( Z1_S_PETER_BIGxLastRunTime.state == NULL ) { Z1_S_PETER_BIGxLastRunTime.postUpdate(new DateTimeType().toString) } // updating last run time on startup to allow all sensors startup and data transfer
     if ( Z1_S_PETER_BIGxArduinoID.state == NULL ) { Z1_S_PETER_BIGxArduinoID.postUpdate(11) }
     if ( Z1_S_PETER_BIGxEngineID.state == NULL ) { Z1_S_PETER_BIGxEngineID.postUpdate(1) }
+    logInfo ("STARTUP", "Startup finished...")
+end
+
+rule "Write_Persistence"
+  when
+    Member of gPersistent changed
+  then
+    logInfo ("Rollershutter", "Writing persistence for:" + triggeringItem.name)
+    if ( running_persistence_read == 0 ) {
+      try {
+        persistence_lock.lock()
+        PERSISTENCE_Args.sendCommand("-W -a "+triggeringItem.name+" -v "+triggeringItem.state)
+        PERSISTENCE.sendCommand(ON)
+        while (PERSISTENCE.state == ON) {
+          Thread::sleep (500)
+        }
+      } catch(Throwable t) {}
+      finally {
+          persistence_lock.unlock()
+      } //finally
+    }
 end
 
 rule "Timer_expired"
@@ -192,15 +241,15 @@ rule "Day to night re-calculation"
                 logInfo("DEBUG", "Executing Arduino "+local_arduino_id.state+" engine "+ local_engine_id.state + " direction "+local_new_run_direction+" time "+local_run_time)
                 arduino_writer.lock()
                 if (local_new_run_direction == 1) {
-                  //ARDUINO_SEND_Args.sendCommand(local_arduino_id.state + " " + local_engine_id.state +" 1")
-                  //ARDUINO_SEND.sendCommand(ON)
+                  ARDUINO_SEND_Args.sendCommand(local_arduino_id.state + " " + local_engine_id.state +" 1")
+                  ARDUINO_SEND.sendCommand(ON)
                   postUpdate (local_split_part0 + "xLastRunDirection","11")
                   postUpdate (local_split_part0 + "xLastRunTime", local_run_time)
                   logInfo("Rollershutter", "Rollershutter " + local_split_part0 + " sent " + local_arduino_id.state + " " + local_engine_id.state +" 1" )
                 }
                 if (local_new_run_direction == 2) {
-                  //ARDUINO_SEND_Args.sendCommand(local_arduino_id.state + " " + local_engine_id.state +" 2")
-                  //ARDUINO_SEND.sendCommand(ON)
+                  ARDUINO_SEND_Args.sendCommand(local_arduino_id.state + " " + local_engine_id.state +" 2")
+                  ARDUINO_SEND.sendCommand(ON)
                   postUpdate (local_split_part0 + "xLastRunDirection","12")
                   postUpdate (local_split_part0 + "xLastRunTime", local_run_time)
                   logInfo("Rollershutter", "Rollershutter " + local_split_part0 + " sent " + local_arduino_id.state + " " + local_engine_id.state +" 2" )

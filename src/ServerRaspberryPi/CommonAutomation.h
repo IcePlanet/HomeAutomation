@@ -16,6 +16,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h> /* struct sockaddr_in, struct sockaddr */
 #include <netinet/tcp.h>
+#include <signal.h>
 
 // BELOW Based on LamPi-2.0/livolo from https://github.com/platenspeler/LamPI-2.0/tree/master/transmitters/livolo 
 

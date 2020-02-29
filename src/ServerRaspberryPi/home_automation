@@ -6,3 +6,10 @@
         missingok
         nomail
 }
+/var/log/home_automation_persistence.log {
+        rotate 123
+        compress
+        delaycompress
+        missingok
+        nomail
+}

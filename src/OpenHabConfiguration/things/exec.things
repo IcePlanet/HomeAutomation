@@ -3,4 +3,10 @@ Thing exec:command:arduino_send [
             interval=0,
             autorun=false]
 
+Thing exec:command:persistence [
+            command="/usr/local/bin/simple_persistence.sh %2$s",
+            interval=0,
+            timeout=33,
+            autorun=false]
+
 Thing exec:command:echo_only [command="echo %2$s", interval=0]

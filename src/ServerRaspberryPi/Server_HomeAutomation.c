@@ -76,6 +76,7 @@ const char radio433_PIN_TX = 27;
 const char radio433_PIN_RX = 17;
 const char radio_433_send_repeat = 100;
 bool radio433_high = true;
+bool running = true;
 
 // Broadcast ID
 const unsigned char broadcast_id = 255;
@@ -212,6 +213,11 @@ int log_message (int level, int detail, const char* message, ...) {
     }
     syslog (log_syslog_priority, "%s%s", log_prefix, log_content);
   }
+}
+
+void signal_callback_handler(int signum) {
+   log_message (555,1,"Received signal %d\n", signum);
+   running = false;
 }
 
 bool uq_init (struct QueueFrames *x) {
@@ -670,11 +676,10 @@ int main(int argc, char** argv) {
   int loops;
   int sleep_interval;
   unsigned long test_send;
-  bool running = true;
   
   if (log_to_syslog) { openlog("HomeAutomationServer", LOG_PID, LOG_USER); }
   log_message (710,1,"START SERVER FOR RF24\n");
-
+  signal(SIGINT, signal_callback_handler);
   empty_frame.frame = 0;
   
   start_radio ();
@@ -695,5 +700,7 @@ int main(int argc, char** argv) {
     should_sleep = true;
     receive_msg (300,0);
   } //main while loop
+  log_message (710,1,"Stopping radio\n");
   stop_radio ();
+  log_message (555,1,"Exitting...\n");
 } //main end

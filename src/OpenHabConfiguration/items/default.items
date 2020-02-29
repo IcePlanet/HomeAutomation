@@ -1,9 +1,9 @@
 // SETTINGS
-Switch AUTO_MANUAL "Automation" <switch> // Does not trigger automatic recalculation ON:auto; OFF:manual
-Number AUTO_MODE "Auto mode" <temperature> // Does not trigger automatic recalculation 0="Neutral", 1="Heating", 2="Cooling"
-Switch HOME_AWAY "Away" <lock> (gS_TRIGGER_ALL) // ON:away; OFF:home
+Switch AUTO_MANUAL "Automation" <switch> (gPersistent) // Does not trigger automatic recalculation ON:auto; OFF:manual
+Number AUTO_MODE "Auto mode" <temperature>  (gPersistent)// Does not trigger automatic recalculation 0="Neutral", 1="Heating", 2="Cooling"
+Switch HOME_AWAY "Away" <lock> (gS_TRIGGER_ALL, gPersistent) // ON:away; OFF:home
 Group gHOME_AWAYxTRIGGER "Items triggered by home/away change"
-Switch DAY_NIGHT "Day" <sun> // ON:day; OFF:night
+Switch DAY_NIGHT "Day" <sun> (gPersistent)// ON:day; OFF:night
 Group gDAY_NIGHTxTRIGGER "Items triggered by day/night change" // it is not included in auto trigger (not member of gS_TRIGGER_ALL, as there is different triggering for day to night transition)
 Group gNIGHT_TO_DAYxTRIGGER "Items triggered by night to day change"
 
@@ -58,7 +58,7 @@ Group gS_TRIGGER_ALL "All sensor values that can trigger recalculation" //  corr
 Group gS_Setup_light_southff "Sensor 1 setup" (gS_Setup_ALL)
 Group gS_light_southffxTRIGGER "Items triggered by S_light_southffxSLD sensor"
 Number S_light_southffxINRAW "Light sensor SOUTH  [%s]" (gSx)
-Number S_light_southffxSLD "Sun Light Dark" (gS_TRIGGER_ALL) // 0:Sun 1:Light 2:Dark
+Number S_light_southffxSLD "Sun Light Dark" (gS_TRIGGER_ALL, gPersistent) // 0:Sun 1:Light 2:Dark
 Number S_light_southffxDarkTreshold "Dark treshold [%s]" (gS_Setup_light_southff)
 Number S_light_southffxSunshineTreshold "Sunshine treshold [%s]" (gS_Setup_light_southff)
 Number S_light_southffxHysteresis "Hysteresis [%s]" (gS_Setup_light_southff)
@@ -66,12 +66,18 @@ Number S_light_southffxHysteresis "Hysteresis [%s]" (gS_Setup_light_southff)
 // Rain sensor on south side 1st floor
 // Calculation and measure not yet added
 Group gS_rain_southffxTRIGGER "Items triggered by S_rain_southffxRAIN sensor"
-Number S_rain_southffxRAIN "Rain sensor SOUTH [%s]" (gS_TRIGGER_ALL) // 0:dry; 1:rain
+Number S_rain_southffxRAIN "Rain sensor SOUTH [%s]" (gS_TRIGGER_ALL, gPersistent) // 0:dry; 1:rain
 
 // WIRELESS SEND TO ARDUINOS
 Switch ARDUINO_SEND { channel="exec:command:arduino_send:run" }
 String ARDUINO_SEND_Args { channel="exec:command:arduino_send:input" }
 String ARDUINO_SEND_Out { channel="exec:command:arduino_send:output" }
+
+// PERSISTENCE
+Group gPersistent "Items that should persist"
+Switch PERSISTENCE { channel="exec:command:persistence:run" }
+String PERSISTENCE_Args { channel="exec:command:persistence:input" }
+String PERSISTENCE_Out { channel="exec:command:persistence:output" }
 
 // TEST SECTION
 Group gTEST "TEST GROUP" <error>
