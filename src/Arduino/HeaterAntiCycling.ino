@@ -99,18 +99,18 @@
 const bool serial_messages = false;
 
 // TEMPERATURE SENSORS (max works as higher than, min works as lower than)
-const unsigned int min_water_temperature = 670; // Was 700 to be decreased to 670
+const unsigned int min_water_temperature = 670; // ~39
 //const unsigned int min_water_temperature = 530; // For in hand test purposes ~25
-const unsigned int max_water_temperature = 810; // ~55 = Last burned was 800, maybe little bit higher (820?)
+const unsigned int max_water_temperature = 835; // ~60
 //const unsigned int max_water_temperature = 560; // For in hand test purposes ~33
 
 // TIMERS
 const unsigned int cycle_duration = 1000; // in ms: one cycle = 1000ms = 1s
-const unsigned int min_controller_off_cycles = 567; // Last burned was 789, to be shortened to 567
+const unsigned int min_controller_off_cycles = 321; // Final
 //const unsigned int min_controller_off_cycles = 20; // For in hand testing
-const unsigned int max_controller_off_cycles = 3456;
+const unsigned int max_controller_off_cycles = 2345;
 //const unsigned int max_controller_off_cycles = 60; // For in hand testing
-const unsigned int min_controller_on_cycles = 1234;
+const unsigned int min_controller_on_cycles = 1000;
 //const unsigned int min_controller_on_cycles = 30; // For in hand testing
 
 // RELAYS PINS
@@ -122,7 +122,7 @@ const byte base_admux = 0b01000000; // measuring against VCC
 const byte water_temp_pin = 1; // measure pin (must be analogue) = center of voltage divider
 const byte water_temp_admux =  ( base_admux | water_temp_pin ); 
 const unsigned char delay_before_v_measure = 17; // 7 should be OK as divider is constantly on added safety margin
-unsigned int current_water_temp = 0; //resulting water temperature on scale 1 to 1024, see table at tthe beginning
+unsigned int current_water_temp = 0; //resulting water temperature on scale 1 to 1024, see table at the beginning
 
 // COUNTERS
 unsigned int cycle_counter = 0;
