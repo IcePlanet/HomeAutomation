@@ -680,6 +680,8 @@ int main(int argc, char** argv) {
   if (log_to_syslog) { openlog("HomeAutomationServer", LOG_PID, LOG_USER); }
   log_message (710,1,"START SERVER FOR RF24\n");
   signal(SIGINT, signal_callback_handler);
+  signal(SIGTERM, signal_callback_handler);
+  signal(SIGQUIT, signal_callback_handler);
   empty_frame.frame = 0;
   
   start_radio ();

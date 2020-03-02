@@ -42,3 +42,8 @@ route delete 0.0.0.0
 route add 192.168.2.0 MASK 255.255.255.0 192.168.2.1 METRIC 50 IF 17
 route add 192.168.21.0 MASK 255.255.255.0 192.168.21.129 METRIC 50 IF 17
 route add 0.0.0.0 MASK 0.0.0.0 192.168.1.1 METRIC 30 IF 13
+
+# Set time zone
+sudo timedatectl set-timezone Europe/Bratislava
+
+# 

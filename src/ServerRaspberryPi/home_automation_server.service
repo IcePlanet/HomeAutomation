@@ -1,0 +1,29 @@
+# Copy this file to /usr/lib/systemd/system/
+# cp /usr/src/HomeAutomation_Novaky/home_automation_server.service /usr/lib/systemd/system/home_automation_server.service
+# sudo chown root:root /usr/lib/systemd/system/home_automation_server.service
+# sudo chmod 640 /usr/lib/systemd/system/home_automation_server.service
+# sudo systemctl enable home_automation_server
+
+# Prepare server (created from pimain)
+# sudo cp /usr/src/HomeAutomation_Novaky/pimain /usr/local/bin/home_automation.server
+# sudo chown root:root /usr/local/bin/home_automation.server
+# sudo chmod 750 /usr/local/bin/home_automation.server
+
+[Unit]
+Description=HomeAutomation service
+After=network.target
+StartLimitIntervalSec=123
+StartLimitBurst=3
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=3
+User=root
+Group=root
+#TimeoutStopSec=47
+#TimeoutStartSec=47
+ExecStart=/usr/local/bin/home_automation.server
+
+[Install]
+WantedBy=multi-user.target
