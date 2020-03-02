@@ -1,4 +1,4 @@
 # To be copied to /etc/cron.d/home_automation.cron
 # After copy systemctl reload crond must be executed
 
-47 0 * * 0 openhab /usr/share/openhab/bin/simple_persistence.sh -C > /var/log/home_automation_persistence.log 2>&1
+47 0 * * 0 openhab /usr/local/bin/simple_persistence.sh -C > /var/log/home_automation_persistence.log 2>&1
