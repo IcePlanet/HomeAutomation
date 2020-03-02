@@ -554,8 +554,8 @@ void loop() {
     LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
     //delay (8000);
     // Adjust timers as during deep sleep time is not ticking
-    voltage_read_last = voltage_read_last - 8000;
-    voltage_send_last = voltage_send_last - 8000;
+    //voltage_read_last = voltage_read_last - 8000;
+    //voltage_send_last = voltage_send_last - 8000;
     delay (sleep_after_deep_sleep);
   }
   else
@@ -565,6 +565,6 @@ void loop() {
     delay (sleep_during_sleep_lock);
   } // active orders can not sleep
   init_radio ();
-  if (voltage_read_ms > 0) { voltage_read (1,1,193,1,66); }
+  //if (voltage_read_ms > 0) { voltage_read (1,1,193,1,66); }
   if (!rf_trx_done) { rf_trx (0); }
 }
