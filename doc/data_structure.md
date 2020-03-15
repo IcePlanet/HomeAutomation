@@ -48,7 +48,7 @@ For engines only transfer from server to client is possible
 Payload 1 is engine number: Engines are numbered from 1 to number of engines (configured on client), if engine number 0 is used the payload 2 must be also 0 and means ALL STOP (internally on client engines are numbered from 0 and transition to this numbering is done in processing orders)
 Payload 2 is required action:
 
-* **0**: STOP (for switch and also for jalousie motor)
+* **0**: STOP (for switch=OFF and also for jalousie motor=STOP)
 * **1**: DOWN (only for jalousie motor)
 * **2**: UP (only for jalousie motor)
 * **3**: ON (only for switch)
@@ -67,6 +67,6 @@ Lock variable:
 * **`0000 0100`**: Payload to be send
 * **`0000 1000`**: Power on for radio
 * **`0001 0000`**: Power on 240 V AC
-* **`0010 0000`**: switch/PIR/cnnectioon
+* **`0010 0000`**: switch/PIR/connection
 
 

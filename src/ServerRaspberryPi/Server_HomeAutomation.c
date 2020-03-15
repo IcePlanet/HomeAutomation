@@ -110,6 +110,7 @@ const unsigned char mask_retransfer_send = 0b00000000;
 const unsigned char mask_ack = 0b10000000;
 const unsigned char mask_engines = 0b00010000;
 const unsigned char mask_voltage = 0b00100000;
+const unsigned char mask_light = 0b00000010;
 const unsigned long mask_long_ack = 128;
 const unsigned long mask_long_retransfer = mask_retransfer_send;
 
@@ -149,7 +150,7 @@ const char *OH_LIGHT = "light";
 const char *OH_VOLTAGE = "voltage";
 const char *OH_UNKNOWN = "UNKNOWN";
 const char *OH_SOUTH_FF = "southff";
-const char *OH_IP = "192.168.2.222";
+const char *OH_IP = "192.168.32.133";
 const short unsigned int OH_PORT = 8080;
 const char *OH_PATH = "/rest/items/";
 struct sockaddr_in sin = { 0 };
@@ -347,6 +348,9 @@ void send_to_open_hab (unsigned char source, unsigned char type, unsigned char v
     case 10 :
       snprintf (open_hab_id, 31,"%s", OH_SOUTH_FF);
       break ;
+    case 11 :
+      snprintf (open_hab_id, 31,"%s", OH_SOUTH_FF);
+      break ;
     default :
       log_message (570,1,"W: Unknown source %u (type %u value %u)\n",source, type, value);
       return;
@@ -379,10 +383,13 @@ void decodeMessage (unsigned long to_decode) {
   union Frame t;
   t.frame = to_decode;
   if ((t.d.order & mask_voltage) != 0) { // Voltages message
-    log_message (720,1,"D: %lu decoded as %u (p1) and %u (p2) \n",to_decode,t.d.payload1, t.d.payload2);
-    // TODO this is wrong as currently arduino is not sending own ID so we do not know from which arduino information was received, will be p1 in future
-    send_to_open_hab (10,2,t.d.payload2);
+    log_message (720,1,"Voltage %lu decoded as %u (p1) and %u (p2) from %u \n",to_decode,t.d.payload1, t.d.payload2, t.d.target);
+    send_to_open_hab (t.d.target,32,t.d.payload1);
   }  // Voltages message
+  if ((t.d.order & mask_light) != 0) { // Light message
+    log_message (720,1,"Light %lu decoded as %u (p1) and %u (p2) from %u \n",to_decode,t.d.payload1, t.d.payload2, t.d.target);
+    send_to_open_hab (t.d.target,2,t.d.payload2);
+  }  // Light message
   else {log_message (500,1,"Decoder %lu dropped as unknown\n",to_decode);}
   return;
 } // decode message
