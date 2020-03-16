@@ -8,8 +8,8 @@
 RF24 radio(7, 8);
 
 // MY ID
-const unsigned char my_id = 10; // Test device
-//const unsigned char my_id = 11; // 1st floor Peter BIG
+//const unsigned char my_id = 10; // Test device
+const unsigned char my_id = 11; // 1st floor Peter BIG
 
 // Broadcast ID
 const unsigned char broadcast_id = 255;
@@ -19,7 +19,7 @@ const unsigned char all_id = 0;
 const unsigned char server_id = 1;
 
 // Messages mode (if to write messages to serial)
-const bool serial_messages = true;
+const bool serial_messages = false;
 
 // RADIO definition
 const unsigned int radio_power_pin = 9;
@@ -102,8 +102,8 @@ const unsigned char v_measure_gnd = 10;
 const unsigned char delay_before_v_measure = 17; // 7
 const unsigned char light_sensor_power_pin = A3;
 //const unsigned int voltage_read_ms = 65432; // interval to read voltage (0 = disabled, implies also 0 on voltage_send_ms) (ms MAX:65535) 
-const unsigned int voltage_read_ms = 3000; // interval to read voltage (0 = disabled, implies also 0 on voltage_send_ms) (ms MAX:65535)
-const unsigned int voltage_send_ms = 5000; // interval to send voltage (0 = disabled) (ms MAX:65535), voltage will be NOT read, voltage will be send on NEXT read after this timer has expired
+const unsigned int voltage_read_ms = 32100; // interval to read voltage (0 = disabled, implies also 0 on voltage_send_ms) (ms MAX:65535)
+const unsigned int voltage_send_ms = 32100; // interval to send voltage (0 = disabled) (ms MAX:65535), voltage will be NOT read, voltage will be send on NEXT read after this timer has expired
 const unsigned char voltage_turn_on_external = 50;  // Treshold when to start external power source
 const unsigned char voltage_turn_off_external = 240; // Treshold when to stop external power source
 unsigned char v_read = 0; // voltage counter
@@ -551,7 +551,7 @@ void setup() {
   engines [0].pin_down = 3;
   engines [0].last_status = -1;
   engines [0].operating = false;
-  engines [0].runtime = 15000; //miliseconds how long operate engine (not accurate)
+  engines [0].runtime = 30000; //miliseconds how long operate engine (not accurate)
   for (i = 0; i < number_of_engines; i++) {
     pinMode (engines[i].pin_down, OUTPUT);
     digitalWrite (engines[i].pin_down, HIGH);
@@ -570,11 +570,11 @@ void loop() {
   if (sleep_lock == 0) {
     // NO ACTIVE ORDER
     shutdown_radio ();
-    //LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
-    delay (8000); // To be commented in final code
+    LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
+    //delay (8000); // To be commented in final code
     // Adjust timers as during deep sleep time is not ticking
-    //voltage_read_last = voltage_read_last - 8000;
-    //voltage_send_last = voltage_send_last - 8000;
+    voltage_read_last = voltage_read_last - 8000;
+    voltage_send_last = voltage_send_last - 8000;
     delay (sleep_after_deep_sleep);
   }
   else

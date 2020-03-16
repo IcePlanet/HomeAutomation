@@ -9,7 +9,7 @@ var Integer running_persistence_read = 0
 val Integer sensor_default_hyst = 20
 val Integer sensor_default_dark = 80
 val Integer sensor_default_sunshine = 200
-val Integer default_lockout_time = 1 // default time in minutes to wait after engine run (valid for automation mode only)
+val Integer default_lockout_time = 5 // default time in minutes to wait after engine run (valid for automation mode only)
 var Timer timer_main = null
 var String timer_queue = ""
 
@@ -368,15 +368,15 @@ rule "South side re-calculation"
                 logInfo("DEBUG", "Executing Arduino "+local_arduino_id.state+" engine "+ local_engine_id.state + " direction "+local_new_run_direction+" time "+local_run_time)
                 arduino_writer.lock()
                 if (local_new_run_direction == 1) {
-                  //ARDUINO_SEND_Args.sendCommand(local_arduino_id.state + " " + local_engine_id.state +" 1")
-                  //ARDUINO_SEND.sendCommand(ON)
+                  ARDUINO_SEND_Args.sendCommand(local_arduino_id.state + " " + local_engine_id.state +" 1")
+                  ARDUINO_SEND.sendCommand(ON)
                   postUpdate (local_split_part0 + "xLastRunDirection","11")
                   postUpdate (local_split_part0 + "xLastRunTime", local_run_time)
                   logInfo("Rollershutter", "Rollershutter " + local_split_part0 + " sent " + local_arduino_id.state + " " + local_engine_id.state +" 1" )
                 }
                 if (local_new_run_direction == 2) {
-                  //ARDUINO_SEND_Args.sendCommand(local_arduino_id.state + " " + local_engine_id.state +" 2")
-                  //ARDUINO_SEND.sendCommand(ON)
+                  ARDUINO_SEND_Args.sendCommand(local_arduino_id.state + " " + local_engine_id.state +" 2")
+                  ARDUINO_SEND.sendCommand(ON)
                   postUpdate (local_split_part0 + "xLastRunDirection","12")
                   postUpdate (local_split_part0 + "xLastRunTime", local_run_time)
                   logInfo("Rollershutter", "Rollershutter " + local_split_part0 + " sent " + local_arduino_id.state + " " + local_engine_id.state +" 2" )

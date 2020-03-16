@@ -5,6 +5,9 @@
         delaycompress
         missingok
         nomail
+        postrotate
+                invoke-rc.d rsyslog rotate > /dev/null
+        endscript
 }
 /var/log/home_automation_persistence.log {
         rotate 123
@@ -12,4 +15,7 @@
         delaycompress
         missingok
         nomail
+        postrotate
+                invoke-rc.d rsyslog rotate > /dev/null
+        endscript
 }
