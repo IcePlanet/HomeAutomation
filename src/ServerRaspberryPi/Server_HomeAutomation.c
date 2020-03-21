@@ -64,11 +64,11 @@ struct radio433_item {
 };
 
 struct radio433_item radio433_list[] = {
-  { 1, 1, 7400, 24, 96, 0, 247},
-  { 1, 2, 7400, 120, 24, 0, 247},
-  { 2, 1, 7400, 80, 48, 0, 247},
-  { 2, 2, 7400, 108, 12, 0, 247},
-  { 2, 4, 7400, 72, 40, 0, 247}
+  { 51, 1, 7400, 24, 96, 0, 247},
+  { 51, 2, 7400, 120, 24, 0, 247},
+  { 52, 1, 7400, 80, 48, 0, 247},
+  { 52, 2, 7400, 108, 12, 0, 247},
+  { 52, 3, 7400, 72, 40, 0, 247}
 };
 
 unsigned char radio433_array_elements = (sizeof (radio433_list))/(sizeof (struct radio433_item)); 
@@ -97,7 +97,7 @@ union Frame {
 const unsigned char ack_bit_position = 7; // Location of ack bit
 const unsigned int receive_loop_cycle_wait = 20000; // delay in us during one receive loop cycle
 const unsigned int send_loop_cycle_wait = 10; // delay in ms during one send loop
-const unsigned int send_loop_duration = 10; //duration of send attempt in seconds
+const unsigned int send_loop_duration = 32; //duration of send attempt in seconds, recommed to be less than 32
 const unsigned int send_loop_sending_duration = 30; // duration of send itself measured value
 const unsigned int send_loop_cycles = send_loop_duration * 1000 / (send_loop_cycle_wait + send_loop_sending_duration); // number of cycles needed for one send
 const unsigned int send_loop_end_sleep = 123; // delay in ms after send before next send is processed

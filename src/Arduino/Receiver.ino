@@ -8,7 +8,7 @@
 RF24 radio(7, 8);
 
 // MY ID
-//const unsigned char my_id = 10; // Test device
+//const unsigned char my_id = 12; // Test device
 const unsigned char my_id = 11; // 1st floor Peter BIG
 
 // Broadcast ID
@@ -115,6 +115,8 @@ unsigned char voltage_ignore_max = 0;
 // Sleeping cycles in main loop
 const unsigned int sleep_after_deep_sleep = 1; // in ms normally cca 50 (ms)
 const unsigned int sleep_during_sleep_lock = 500 + my_id;
+const unsigned int sleep_engine_change = 11; // in ms, sleep after engine manipulation - if check is executed too fast (in the same ms as engine set) the result might be 0 leading to immediate engine switch off
+const unsigned int sleep_before_lock_validate = 11; // in ms, sleep before validation of sleep lock validation - if check is executed too fast (in the same ms as engine set) the result might be 0 leading to immediate engine switch off
 
 const unsigned int size_of_long = sizeof (unsigned long);
 
@@ -328,6 +330,7 @@ void engine_change (unsigned int e, unsigned int o, bool f) {
     digitalWrite (engines[e].pin_on, LOW);
     digitalWrite (engines[e].pin_power, HIGH);
     engines[e].start = millis ();
+    delay (sleep_engine_change);
     return;
   }
   if ((engines[e].last_status != o) && (o == 2)) {
@@ -343,6 +346,7 @@ void engine_change (unsigned int e, unsigned int o, bool f) {
     digitalWrite (engines[e].pin_on, LOW);
     digitalWrite (engines[e].pin_power, HIGH);
     engines[e].start = millis ();
+    delay (sleep_engine_change);
     return;
   }
   if ((engines[e].last_status != o) && (o == 3)) {
@@ -353,6 +357,7 @@ void engine_change (unsigned int e, unsigned int o, bool f) {
     bitSet (sleep_lock,sleep_lock_orders_engine_running);
     digitalWrite (engines[e].pin_on, LOW);
     digitalWrite (engines[e].pin_power, HIGH);
+    delay (sleep_engine_change);
     return;
   }
   if ((engines[e].operating) && (o == 0)) {
@@ -525,6 +530,7 @@ void process_orders () {
 
 void sleep_lock_validate () {
   unsigned char i;
+  delay (sleep_before_lock_validate);
   if (bitRead (sleep_lock,sleep_lock_orders_engine_running) == 1) { // Engines blocking sleep
     bitClear (sleep_lock,sleep_lock_orders_engine_running);
     for (i = 0; i < number_of_engines; i++) { // Loop all engines

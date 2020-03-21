@@ -21,9 +21,10 @@ Group:Rollershutter gZD "Zaluzie dvere" <blinds> (gZx)
 Group:Rollershutter gZ_South "Zaluzie south" <blinds>
 
 Group gGF "Prizemie" <groundfloor>
+Group gGF_Living "Obyvacka" <groundfloor> (gGF)
+Group gGF_Winter "Zimna zahrada" <groundfloor> (gGF)
 
 Group gFF "Poschodie" <firstfloor>
-
 Group gFF_Peter "Peter" <firstfloor> (gFF)
 
 // WHEN ADDING ITEMS DO NOT FORGET TO SETUP INIT VALUES IN STARTUP SECTION OF RULES
@@ -43,11 +44,88 @@ Number Z1_S_PETER_BIGxArduinoID "Target arduino"
 Number Z1_S_PETER_BIGxEngineID "Target engine on arduino"
 
 Rollershutter Z1_S_PETER_SMALLx12x1 "Peter okno" <blinds> (gFF_Peter, gZO, gZ_ALL, gZ_South)
-Switch Z1_S_PETER_SMALLxTRIGGER "Trigger to start automatic recalculation" 
-// (gS_light_southffxTRIGGER, gHOME_AWAYxTRIGGER, gS_light_southffxTRIGGER) // temporary removed from group 
+Switch Z1_S_PETER_SMALLxTRIGGER "Trigger to start automatic recalculation" (gS_light_southffxTRIGGER, gHOME_AWAYxTRIGGER, gNIGHT_TO_DAYxTRIGGER)
+Switch Z1_S_PETER_SMALLxDAY_NIGHT_TRIGGER "Trigger to start on night start" (gDAY_NIGHTxTRIGGER)
 DateTime Z1_S_PETER_SMALLxLastRunTime "Last run time"
 Number Z1_S_PETER_SMALLxLastRunDirection "Last run direction for manual command 0:Stop; 1:DOWN; 2:UP for automated command it is always +10"
-Number Z1_S_PETER_SMALLxAutoManual "Automation or manual 0:No automation; 1:Automation"
+Number Z1_S_PETER_SMALLxAutoManual "Automation or manual 0:No automation; 1:Automation 9:Ignore this settings"
+Number Z1_S_PETER_SMALLxCoolingHeating "Cooling Heating None 0:None; 1:Heating; 2: Cooling; 9: Ignore this settings"
+Number Z1_S_PETER_SMALLxPlants "Plants behind window 0:No plants; 1:Plants"
+Number Z1_S_PETER_SMALLxDoorProtect "Door 0:No door; 1:Door"
+Number Z1_S_PETER_SMALLxRainProtect "Rain protection 0:None; 1:Protected"
+Number Z1_S_PETER_SMALLxCoolingAllowed "Cooling 0:Not alowed; 1:Allowed"
+Number Z1_S_PETER_SMALLxArduinoID "Target arduino"
+Number Z1_S_PETER_SMALLxEngineID "Target engine on arduino"
+
+Rollershutter Z0_S_LIVING_DOORx51x1 "Obyvacka dvere" <blinds> (gGF_Living, gZD, gZ_ALL, gZ_South)
+Switch Z0_S_LIVING_DOORxTRIGGER "Trigger to start automatic recalculation" (gS_light_southffxTRIGGER, gHOME_AWAYxTRIGGER, gNIGHT_TO_DAYxTRIGGER)
+Switch Z0_S_LIVING_DOORxDAY_NIGHT_TRIGGER "Trigger to start on night start" (gDAY_NIGHTxTRIGGER)
+DateTime Z0_S_LIVING_DOORxLastRunTime "Last run time"
+Number Z0_S_LIVING_DOORxLastRunDirection "Last run direction for manual command 0:Stop; 1:DOWN; 2:UP for automated command it is always +10"
+Number Z0_S_LIVING_DOORxAutoManual "Automation or manual 0:No automation; 1:Automation 9:Ignore this settings"
+Number Z0_S_LIVING_DOORxCoolingHeating "Cooling Heating None 0:None; 1:Heating; 2: Cooling; 9: Ignore this settings"
+Number Z0_S_LIVING_DOORxPlants "Plants behind window 0:No plants; 1:Plants"
+Number Z0_S_LIVING_DOORxDoorProtect "Door 0:No door; 1:Door"
+Number Z0_S_LIVING_DOORxRainProtect "Rain protection 0:None; 1:Protected"
+Number Z0_S_LIVING_DOORxCoolingAllowed "Cooling 0:Not alowed; 1:Allowed"
+Number Z0_S_LIVING_DOORxArduinoID "Target arduino"
+Number Z0_S_LIVING_DOORxEngineID "Target engine on arduino"
+
+Rollershutter Z0_S_LIVING_WINDOWx51x2 "Obyvacka okno" <blinds> (gGF_Living, gZD, gZ_ALL, gZ_South)
+Switch Z0_S_LIVING_WINDOWxTRIGGER "Trigger to start automatic recalculation" (gS_light_southffxTRIGGER, gHOME_AWAYxTRIGGER, gNIGHT_TO_DAYxTRIGGER)
+Switch Z0_S_LIVING_WINDOWxDAY_NIGHT_TRIGGER "Trigger to start on night start" (gDAY_NIGHTxTRIGGER)
+DateTime Z0_S_LIVING_WINDOWxLastRunTime "Last run time"
+Number Z0_S_LIVING_WINDOWxLastRunDirection "Last run direction for manual command 0:Stop; 1:DOWN; 2:UP for automated command it is always +10"
+Number Z0_S_LIVING_WINDOWxAutoManual "Automation or manual 0:No automation; 1:Automation 9:Ignore this settings"
+Number Z0_S_LIVING_WINDOWxCoolingHeating "Cooling Heating None 0:None; 1:Heating; 2: Cooling; 9: Ignore this settings"
+Number Z0_S_LIVING_WINDOWxPlants "Plants behind window 0:No plants; 1:Plants"
+Number Z0_S_LIVING_WINDOWxDoorProtect "Door 0:No door; 1:Door"
+Number Z0_S_LIVING_WINDOWxRainProtect "Rain protection 0:None; 1:Protected"
+Number Z0_S_LIVING_WINDOWxCoolingAllowed "Cooling 0:Not alowed; 1:Allowed"
+Number Z0_S_LIVING_WINDOWxArduinoID "Target arduino"
+Number Z0_S_LIVING_WINDOWxEngineID "Target engine on arduino"
+
+Rollershutter Z0_S_WINTER_DOORx52x1 "Zimna zahrada dvere" <blinds> (gGF_Winter, gZD, gZ_ALL, gZ_South)
+Switch Z0_S_WINTER_DOORxTRIGGER "Trigger to start automatic recalculation" (gS_light_southffxTRIGGER, gHOME_AWAYxTRIGGER, gNIGHT_TO_DAYxTRIGGER)
+Switch Z0_S_WINTER_DOORxDAY_NIGHT_TRIGGER "Trigger to start on night start" (gDAY_NIGHTxTRIGGER)
+DateTime Z0_S_WINTER_DOORxLastRunTime "Last run time"
+Number Z0_S_WINTER_DOORxLastRunDirection "Last run direction for manual command 0:Stop; 1:DOWN; 2:UP for automated command it is always +10"
+Number Z0_S_WINTER_DOORxAutoManual "Automation or manual 0:No automation; 1:Automation 9:Ignore this settings"
+Number Z0_S_WINTER_DOORxCoolingHeating "Cooling Heating None 0:None; 1:Heating; 2: Cooling; 9: Ignore this settings"
+Number Z0_S_WINTER_DOORxPlants "Plants behind window 0:No plants; 1:Plants"
+Number Z0_S_WINTER_DOORxDoorProtect "Door 0:No door; 1:Door"
+Number Z0_S_WINTER_DOORxRainProtect "Rain protection 0:None; 1:Protected"
+Number Z0_S_WINTER_DOORxCoolingAllowed "Cooling 0:Not alowed; 1:Allowed"
+Number Z0_S_WINTER_DOORxArduinoID "Target arduino"
+Number Z0_S_WINTER_DOORxEngineID "Target engine on arduino"
+
+Rollershutter Z0_S_WINTER_TERASAx52x2 "Zimna zahrada terasa" <blinds> (gGF_Winter, gZD, gZ_ALL, gZ_South)
+Switch Z0_S_WINTER_TERASAxTRIGGER "Trigger to start automatic recalculation" (gS_light_southffxTRIGGER, gHOME_AWAYxTRIGGER, gNIGHT_TO_DAYxTRIGGER)
+Switch Z0_S_WINTER_TERASAxDAY_NIGHT_TRIGGER "Trigger to start on night start" (gDAY_NIGHTxTRIGGER)
+DateTime Z0_S_WINTER_TERASAxLastRunTime "Last run time"
+Number Z0_S_WINTER_TERASAxLastRunDirection "Last run direction for manual command 0:Stop; 1:DOWN; 2:UP for automated command it is always +10"
+Number Z0_S_WINTER_TERASAxAutoManual "Automation or manual 0:No automation; 1:Automation 9:Ignore this settings"
+Number Z0_S_WINTER_TERASAxCoolingHeating "Cooling Heating None 0:None; 1:Heating; 2: Cooling; 9: Ignore this settings"
+Number Z0_S_WINTER_TERASAxPlants "Plants behind window 0:No plants; 1:Plants"
+Number Z0_S_WINTER_TERASAxDoorProtect "Door 0:No door; 1:Door"
+Number Z0_S_WINTER_TERASAxRainProtect "Rain protection 0:None; 1:Protected"
+Number Z0_S_WINTER_TERASAxCoolingAllowed "Cooling 0:Not alowed; 1:Allowed"
+Number Z0_S_WINTER_TERASAxArduinoID "Target arduino"
+Number Z0_S_WINTER_TERASAxEngineID "Target engine on arduino"
+
+Rollershutter Z0_S_WINTER_CHODNIKx52x3 "Zimna zahrada chodnik" <blinds> (gGF_Winter, gZD, gZ_ALL, gZ_South)
+Switch Z0_S_WINTER_CHODNIKxTRIGGER "Trigger to start automatic recalculation" (gS_light_southffxTRIGGER, gHOME_AWAYxTRIGGER, gNIGHT_TO_DAYxTRIGGER)
+Switch Z0_S_WINTER_CHODNIKxDAY_NIGHT_TRIGGER "Trigger to start on night start" (gDAY_NIGHTxTRIGGER)
+DateTime Z0_S_WINTER_CHODNIKxLastRunTime "Last run time"
+Number Z0_S_WINTER_CHODNIKxLastRunDirection "Last run direction for manual command 0:Stop; 1:DOWN; 2:UP for automated command it is always +10"
+Number Z0_S_WINTER_CHODNIKxAutoManual "Automation or manual 0:No automation; 1:Automation 9:Ignore this settings"
+Number Z0_S_WINTER_CHODNIKxCoolingHeating "Cooling Heating None 0:None; 1:Heating; 2: Cooling; 9: Ignore this settings"
+Number Z0_S_WINTER_CHODNIKxPlants "Plants behind window 0:No plants; 1:Plants"
+Number Z0_S_WINTER_CHODNIKxDoorProtect "Door 0:No door; 1:Door"
+Number Z0_S_WINTER_CHODNIKxRainProtect "Rain protection 0:None; 1:Protected"
+Number Z0_S_WINTER_CHODNIKxCoolingAllowed "Cooling 0:Not alowed; 1:Allowed"
+Number Z0_S_WINTER_CHODNIKxArduinoID "Target arduino"
+Number Z0_S_WINTER_CHODNIKxEngineID "Target engine on arduino"
 
 // SENSORS
 Group gSx "Sensors"

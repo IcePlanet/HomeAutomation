@@ -6,9 +6,9 @@ var ReentrantLock arduino_writer = new ReentrantLock
 var ReentrantLock persistence_lock = new ReentrantLock
 var ReentrantLock auto_runner_lock = new ReentrantLock
 var Integer running_persistence_read = 0
-val Integer sensor_default_hyst = 20
-val Integer sensor_default_dark = 80
-val Integer sensor_default_sunshine = 200
+val Integer sensor_default_hyst = 15
+val Integer sensor_default_dark = 100
+val Integer sensor_default_sunshine = 220
 val Integer default_lockout_time = 5 // default time in minutes to wait after engine run (valid for automation mode only)
 var Timer timer_main = null
 var String timer_queue = ""
@@ -53,7 +53,7 @@ rule "Startup"
     timer_main = null
     // TODO: Temporary entered here until sensor is available (then delete next line)
     S_rain_southffxRAIN.postUpdate(0)
-    // STARTUP SETTINGS PER WINDOW
+    // STARTUP SETTINGS PETER BIG
     if ( Z1_S_PETER_BIGxPlants.state == NULL ) { Z1_S_PETER_BIGxPlants.postUpdate(1) }
     if ( Z1_S_PETER_BIGxDoorProtect.state == NULL ) { Z1_S_PETER_BIGxDoorProtect.postUpdate(0) }
     if ( Z1_S_PETER_BIGxRainProtect.state == NULL ) { Z1_S_PETER_BIGxRainProtect.postUpdate(1) }
@@ -61,6 +61,54 @@ rule "Startup"
     if ( Z1_S_PETER_BIGxLastRunTime.state == NULL ) { Z1_S_PETER_BIGxLastRunTime.postUpdate(new DateTimeType().toString) } // updating last run time on startup to allow all sensors startup and data transfer
     if ( Z1_S_PETER_BIGxArduinoID.state == NULL ) { Z1_S_PETER_BIGxArduinoID.postUpdate(11) }
     if ( Z1_S_PETER_BIGxEngineID.state == NULL ) { Z1_S_PETER_BIGxEngineID.postUpdate(1) }
+    // STARTUP SETTINGS PETER SMALL
+    if ( Z1_S_PETER_SMALLxPlants.state == NULL ) { Z1_S_PETER_SMALLxPlants.postUpdate(1) }
+    if ( Z1_S_PETER_SMALLxDoorProtect.state == NULL ) { Z1_S_PETER_SMALLxDoorProtect.postUpdate(0) }
+    if ( Z1_S_PETER_SMALLxRainProtect.state == NULL ) { Z1_S_PETER_SMALLxRainProtect.postUpdate(1) }
+    if ( Z1_S_PETER_SMALLxCoolingAllowed.state == NULL ) { Z1_S_PETER_SMALLxCoolingAllowed.postUpdate(0) }
+    if ( Z1_S_PETER_SMALLxLastRunTime.state == NULL ) { Z1_S_PETER_SMALLxLastRunTime.postUpdate(new DateTimeType().toString) } // updating last run time on startup to allow all sensors startup and data transfer
+    if ( Z1_S_PETER_SMALLxArduinoID.state == NULL ) { Z1_S_PETER_SMALLxArduinoID.postUpdate(12) }
+    if ( Z1_S_PETER_SMALLxEngineID.state == NULL ) { Z1_S_PETER_SMALLxEngineID.postUpdate(1) }
+    // STARTUP SETTINGS LIVING ROOM DOOR
+    if ( Z0_S_LIVING_DOORxPlants.state == NULL ) { Z0_S_LIVING_DOORxPlants.postUpdate(1) }
+    if ( Z0_S_LIVING_DOORxDoorProtect.state == NULL ) { Z0_S_LIVING_DOORxDoorProtect.postUpdate(0) }
+    if ( Z0_S_LIVING_DOORxRainProtect.state == NULL ) { Z0_S_LIVING_DOORxRainProtect.postUpdate(1) }
+    if ( Z0_S_LIVING_DOORxCoolingAllowed.state == NULL ) { Z0_S_LIVING_DOORxCoolingAllowed.postUpdate(0) }
+    if ( Z0_S_LIVING_DOORxLastRunTime.state == NULL ) { Z0_S_LIVING_DOORxLastRunTime.postUpdate(new DateTimeType().toString) } // updating last run time on startup to allow all sensors startup and data transfer
+    if ( Z0_S_LIVING_DOORxArduinoID.state == NULL ) { Z0_S_LIVING_DOORxArduinoID.postUpdate(51) }
+    if ( Z0_S_LIVING_DOORxEngineID.state == NULL ) { Z0_S_LIVING_DOORxEngineID.postUpdate(1) }
+    // STARTUP SETTINGS LIVING ROOM WINDOW
+    if ( Z0_S_LIVING_WINDOWxPlants.state == NULL ) { Z0_S_LIVING_WINDOWxPlants.postUpdate(1) }
+    if ( Z0_S_LIVING_WINDOWxDoorProtect.state == NULL ) { Z0_S_LIVING_WINDOWxDoorProtect.postUpdate(0) }
+    if ( Z0_S_LIVING_WINDOWxRainProtect.state == NULL ) { Z0_S_LIVING_WINDOWxRainProtect.postUpdate(1) }
+    if ( Z0_S_LIVING_WINDOWxCoolingAllowed.state == NULL ) { Z0_S_LIVING_WINDOWxCoolingAllowed.postUpdate(0) }
+    if ( Z0_S_LIVING_WINDOWxLastRunTime.state == NULL ) { Z0_S_LIVING_WINDOWxLastRunTime.postUpdate(new DateTimeType().toString) } // updating last run time on startup to allow all sensors startup and data transfer
+    if ( Z0_S_LIVING_WINDOWxArduinoID.state == NULL ) { Z0_S_LIVING_WINDOWxArduinoID.postUpdate(51) }
+    if ( Z0_S_LIVING_WINDOWxEngineID.state == NULL ) { Z0_S_LIVING_WINDOWxEngineID.postUpdate(2) }
+    // STARTUP SETTINGS WINTER DOOR
+    if ( Z0_S_WINTER_DOORxPlants.state == NULL ) { Z0_S_WINTER_DOORxPlants.postUpdate(1) }
+    if ( Z0_S_WINTER_DOORxDoorProtect.state == NULL ) { Z0_S_WINTER_DOORxDoorProtect.postUpdate(0) }
+    if ( Z0_S_WINTER_DOORxRainProtect.state == NULL ) { Z0_S_WINTER_DOORxRainProtect.postUpdate(1) }
+    if ( Z0_S_WINTER_DOORxCoolingAllowed.state == NULL ) { Z0_S_WINTER_DOORxCoolingAllowed.postUpdate(0) }
+    if ( Z0_S_WINTER_DOORxLastRunTime.state == NULL ) { Z0_S_WINTER_DOORxLastRunTime.postUpdate(new DateTimeType().toString) } // updating last run time on startup to allow all sensors startup and data transfer
+    if ( Z0_S_WINTER_DOORxArduinoID.state == NULL ) { Z0_S_WINTER_DOORxArduinoID.postUpdate(52) }
+    if ( Z0_S_WINTER_DOORxEngineID.state == NULL ) { Z0_S_WINTER_DOORxEngineID.postUpdate(1) }
+    // STARTUP SETTINGS WINTER WINDOW TO TERASA
+    if ( Z0_S_WINTER_TERASAxPlants.state == NULL ) { Z0_S_WINTER_TERASAxPlants.postUpdate(1) }
+    if ( Z0_S_WINTER_TERASAxDoorProtect.state == NULL ) { Z0_S_WINTER_TERASAxDoorProtect.postUpdate(0) }
+    if ( Z0_S_WINTER_TERASAxRainProtect.state == NULL ) { Z0_S_WINTER_TERASAxRainProtect.postUpdate(1) }
+    if ( Z0_S_WINTER_TERASAxCoolingAllowed.state == NULL ) { Z0_S_WINTER_TERASAxCoolingAllowed.postUpdate(0) }
+    if ( Z0_S_WINTER_TERASAxLastRunTime.state == NULL ) { Z0_S_WINTER_TERASAxLastRunTime.postUpdate(new DateTimeType().toString) } // updating last run time on startup to allow all sensors startup and data transfer
+    if ( Z0_S_WINTER_TERASAxArduinoID.state == NULL ) { Z0_S_WINTER_TERASAxArduinoID.postUpdate(52) }
+    if ( Z0_S_WINTER_TERASAxEngineID.state == NULL ) { Z0_S_WINTER_TERASAxEngineID.postUpdate(2) }
+    // STARTUP SETTINGS WINTER WINDOW TO CHODNIK
+    if ( Z0_S_WINTER_CHODNIKxPlants.state == NULL ) { Z0_S_WINTER_CHODNIKxPlants.postUpdate(1) }
+    if ( Z0_S_WINTER_CHODNIKxDoorProtect.state == NULL ) { Z0_S_WINTER_CHODNIKxDoorProtect.postUpdate(0) }
+    if ( Z0_S_WINTER_CHODNIKxRainProtect.state == NULL ) { Z0_S_WINTER_CHODNIKxRainProtect.postUpdate(1) }
+    if ( Z0_S_WINTER_CHODNIKxCoolingAllowed.state == NULL ) { Z0_S_WINTER_CHODNIKxCoolingAllowed.postUpdate(0) }
+    if ( Z0_S_WINTER_CHODNIKxLastRunTime.state == NULL ) { Z0_S_WINTER_CHODNIKxLastRunTime.postUpdate(new DateTimeType().toString) } // updating last run time on startup to allow all sensors startup and data transfer
+    if ( Z0_S_WINTER_CHODNIKxArduinoID.state == NULL ) { Z0_S_WINTER_CHODNIKxArduinoID.postUpdate(52) }
+    if ( Z0_S_WINTER_CHODNIKxEngineID.state == NULL ) { Z0_S_WINTER_CHODNIKxEngineID.postUpdate(3) }
     logInfo ("STARTUP", "Startup finished...")
 end
 
