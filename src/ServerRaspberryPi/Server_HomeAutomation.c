@@ -56,16 +56,16 @@ using namespace std;
 struct radio433_item {
   unsigned char target; // Original target in openhab
   unsigned char engine; // Original engine number from openhab
-  unsigned int remoteID; // Remote ID to be used for alternative sending via 433 // real remote IDs: 6400; 19303; 23783 tested "virtual" remote IDs: 10550; 8500; 7400
-  unsigned char keycodeUP; // Remote keycode to be used for alternative sending via 433 UP // keycodes #1: 0, #2: 96, #3: 120, #4: 24, #5: 80, #6: 48, #7: 108, #8: 12, #9: 72; #10: 40, #OFF: 106
+  unsigned int remoteID; // Remote ID to be used for alternative sending via 433 // real remote IDs: 6400; 19303; 23783; 26339; 26348 tested "virtual" remote IDs: 10550; 8500; 7400
+  unsigned char keycodeUP; // Remote keycode to be used for alternative sending via 433 UP // keycodes #1: 0, #2: 96, #3: 120, #4: 24, #5: 80=108, #6: 48=72, #7: 108=48, #8: 12, #9: 72=80; #10: 40, #OFF: 106
   unsigned char keycodeDOWN; // Remote keycode to be used for alternative sending via 433 DOWN // keycodes #1: 0, #2: 96, #3: 120, #4: 24, #5: 80, #6: 48, #7: 108, #8: 12, #9: 72; #10: 40, #OFF: 106
   unsigned char keycodeSTOP; // If 0 instead of stop keycode the keycode of last command is used
   unsigned char lastKeycode; // Last keycode send out (247 means nothing send out until now, or stop was the last command)
 };
 
 struct radio433_item radio433_list[] = {
-  { 51, 1, 7400, 24, 96, 0, 247},
-  { 51, 2, 7400, 120, 24, 0, 247},
+  { 51, 1, 6400, 120, 96, 0, 247},
+  { 51, 2, 19303, 120, 96, 0, 247},
   { 52, 1, 7400, 80, 48, 0, 247},
   { 52, 2, 7400, 108, 12, 0, 247},
   { 52, 3, 7400, 72, 40, 0, 247}
@@ -74,7 +74,7 @@ struct radio433_item radio433_list[] = {
 unsigned char radio433_array_elements = (sizeof (radio433_list))/(sizeof (struct radio433_item)); 
 const char radio433_PIN_TX = 27;
 const char radio433_PIN_RX = 17;
-const char radio_433_send_repeat = 100;
+const char radio_433_send_repeat = 150;
 bool radio433_high = true;
 bool running = true;
 
@@ -117,8 +117,8 @@ const unsigned long mask_long_retransfer = mask_retransfer_send;
 // LOG SETTINGS
 const int log_level = 800; //Log level, the lower number the more priority log, so lower level means less messages
 const char* timeformat = "%Y%m%d%H%M%S";
-const bool log_to_screen = true;
-const bool log_to_syslog = false;
+const bool log_to_screen = false;
+const bool log_to_syslog = true;
 const unsigned int log_level_emergency = 100;
 const unsigned int log_level_alert = 200;
 const unsigned int log_level_critical = 300;
@@ -432,9 +432,9 @@ int stop_radio () {
 // have not tested other buttons, but as there is dimmer control, some keycodes could be strictly system
 // use: sendButton(remoteID, keycode), see example blink.ino; 
 
-const int p_short = 110;									// 110 works quite OK
-const int p_long = 290;									// 300 works quite OK
-const int p_start = 520;									// 520 works quite OK
+const int p_short = 120;									// 110 works quite OK
+const int p_long = 315;									// 300 works quite OK
+const int p_start = 525;									// 520 works quite OK
 
 void radio433_sendPulse(unsigned char txPulse) {
   // log_message (980,1,"DEBUG 433 transmit start for %d\n", txPulse);
@@ -535,6 +535,78 @@ void radio433_sendButton(unsigned int remoteID, unsigned char keycode) {
 // ABOVE Based on LamPi-2.0/livolo from https://github.com/platenspeler/LamPI-2.0/tree/master/transmitters/livolo 
 // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+
+// vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+// BELOW Based on roidayan/LivoloPi from https://github.com/roidayan/LivoloPi
+#define LIVOLO_PREAMBLE_DURATION 525
+#define LIVOLO_ZERO_DURATION 120
+#define LIVOLO_ONE_DURATION 315
+#define LIVOLO_NUM_REPEATS 150
+bool mIsHigh;
+int mTxPin;
+
+void roidayan_tx(bool value)
+{
+  digitalWrite(radio433_PIN_TX, value ? HIGH : LOW);
+}
+
+void roidayan_sendPreamble()
+{
+  roidayan_tx(true);
+  delayMicroseconds(LIVOLO_PREAMBLE_DURATION);
+  roidayan_tx(false);
+  mIsHigh = false;
+}
+
+void roidayan_sendOne()
+{
+  delayMicroseconds(LIVOLO_ONE_DURATION);
+  mIsHigh = !mIsHigh;
+  roidayan_tx(mIsHigh);
+}
+
+void roidayan_sendZero()
+{
+  delayMicroseconds(LIVOLO_ZERO_DURATION);
+  roidayan_tx(!mIsHigh);
+  delayMicroseconds(LIVOLO_ZERO_DURATION);
+  roidayan_tx(mIsHigh);
+}
+
+void roidayan_sendCommand(uint32_t command, uint8_t numBits)
+{
+  //piHiPri(90);
+  for (uint8_t repeat = 0; repeat < LIVOLO_NUM_REPEATS; ++repeat)
+  {
+    uint32_t mask = (1 << (numBits - 1));
+    roidayan_sendPreamble();
+    for (uint8_t i = numBits; i > 0; --i)
+    {
+      if ((command & mask) > 0)
+      {
+        roidayan_sendOne();
+      }
+      else
+      {
+        roidayan_sendZero();
+      }
+      mask >>= 1;
+    }
+  }
+  roidayan_tx(false);
+}
+
+void roidayan_sendButton(uint16_t remoteId, uint8_t keyId)
+{
+  // 7 bit Key Id and 16 bit Remote Id
+  mIsHigh = false;
+  uint32_t command = ((uint32_t)keyId & 0x7F) | (remoteId << 7);
+  roidayan_sendCommand(command, 23);
+}
+
+// ABOVE Based on roidayan/LivoloPi from https://github.com/roidayan/LivoloPi
+// ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
 unsigned long send_msg (unsigned long long_message) {
   struct timeval tv;
   unsigned long send_start;
@@ -605,9 +677,10 @@ unsigned long send_msg (unsigned long long_message) {
     usleep (send_loop_end_sleep);
   } // Sending via NRF
   else { // Sending via 433
-    log_message (800,2,"Sending 433 via ID %d and key %d to %d engine %d action %d START\n",r433_ID, r433_command,tmp_msg.d.target,tmp_msg.d.payload1,tmp_msg.d.payload2 );
-  	radio433_sendButton(r433_ID, r433_command);	
-    log_message (800,2,"Sending 433 via ID %d and key %d to %d engine %d action %d END\n",r433_ID, r433_command,tmp_msg.d.target,tmp_msg.d.payload1,tmp_msg.d.payload2 );
+    log_message (800,2,"Ready to send 433 via ID %d and key %d to %d engine %d action %d\n",r433_ID, r433_command,tmp_msg.d.target,tmp_msg.d.payload1,tmp_msg.d.payload2 );
+  	roidayan_sendButton(r433_ID, r433_command);	
+  	//radio433_sendButton(r433_ID, r433_command);	
+    log_message (750,2,"Done sending 433 via ID %d and key %d to %d engine %d action %d\n",r433_ID, r433_command,tmp_msg.d.target,tmp_msg.d.payload1,tmp_msg.d.payload2 );
     usleep (send_loop_end_sleep);
   } // Sending via 433
 }

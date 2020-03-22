@@ -4,6 +4,8 @@
 # sudo chmod 640 /usr/lib/systemd/system/home_automation_server.service
 # sudo systemctl enable home_automation_server
 
+# sudo systemctl status home_automation_server.service
+
 # Prepare server (created from pimain)
 # sudo cp /usr/src/HomeAutomation_Novaky/pimain /usr/local/bin/home_automation.server
 # sudo chown root:root /usr/local/bin/home_automation.server
@@ -23,6 +25,7 @@ User=root
 Group=root
 #TimeoutStopSec=47
 #TimeoutStartSec=47
+Nice=-15
 ExecStart=/usr/local/bin/home_automation.server
 
 [Install]
