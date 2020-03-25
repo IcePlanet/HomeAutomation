@@ -4,6 +4,6 @@ set "TARGET=192.168.32.133"
 rem set "TARGET=192.168.1.222"
 
 %PSCP_PATH% -r %SOURCE%src\ServerRaspberryPi\* ice@%TARGET%:/usr/src/HomeAutomation_Novaky
+%PSCP_PATH% -r %SOURCE%test_code\Pi\* ice@%TARGET%:/usr/src/HomeAutomation_Novaky
 %PSCP_PATH% -r %SOURCE%src\OpenHabConfiguration\* ice@%TARGET%:/etc/openhab2
-
-%PSCP_PATH% -r %SOURCE%src\ServerRaspberryPi\simple_persistence.sh ice@%TARGET%:/tmp/
+rem %PSCP_PATH% -r %SOURCE%src\ServerRaspberryPi\simple_persistence.sh ice@%TARGET%:/tmp/

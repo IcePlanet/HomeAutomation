@@ -65,7 +65,7 @@ union Frame tx_queue [tx_max_queue_size];
 // For simplification the engine pins are HIGH due to the way how relay board is designed (can be done also with low as default but this is little bit more complicated as the pin_power is common for whole board (2, 4, 6 relays))
 const unsigned int number_of_engines = 1;
 const unsigned char engine_orders_bit_position = 4;
-const unsigned int engine_direction_switch_delay = 678; // delay before direction of engine movement can be switched to other direction
+const unsigned int engine_direction_switch_delay = 789; // delay before direction of engine movement can be switched to other direction
 struct engine_control {
   int pin_power; // Power for the relay board
   int pin_on; // relay switching on the power to engine default (NC) OFF, when triggered (NO) ON
@@ -251,6 +251,18 @@ bool rf_tx_only (unsigned long to_send_payload) {
   if (serial_messages) { Serial.print (" Send end "); }
 }
   
+void payload_tx_only (unsigned char p1_bit, unsigned char p1_payload, unsigned char p2_bit, unsigned char p2_payload) {
+  // If no payload is present then bit should be > 8 to indicate no content (payloads are always copied)
+  union Frame tx_t ;
+  tx_t.frame = 0;
+  tx_t.d.target = my_id; // Arduino is responding with own ID as target (effectivelly target has become source for arduino to server communication)
+  tx_t.d.payload1 = p1_payload;
+  tx_t.d.payload2 = p2_payload;
+  if (p1_bit < 8) { bitSet (tx_t.d.order,p1_bit); }
+  if (p2_bit < 8) { bitSet (tx_t.d.order,p2_bit); }
+  rf_tx_only (tx_t.frame); // Can result in data not send in case there was another transmission ongoing, but these data can be lost and are not so valuable
+}
+
 bool rf_trx (unsigned long to_send_payload) {
   unsigned long tstart, tend, receive_time;
   unsigned int i = 0;
@@ -275,7 +287,7 @@ bool rf_trx (unsigned long to_send_payload) {
           if (rx_tmp.d.target == my_id) { rf_tx_only (rx_tmp.frame); if (serial_messages) { Serial.print (" ACK: "); Serial.print (rx_tmp.frame); Serial.print (" T: ");Serial.print (millis ()); } } // Sending ack if it was for me
           if (rx_tmp.frame != rx_last.frame) { // New data have been received
             if ((rx_tmp.d.order & orders_mask) == 0) { rx_queue_start = 0; rx_queue_count = 1; rx_queue[rx_queue_start].frame = 0; if (serial_messages) { Serial.print (" STOP ALL "); } } // stop all message is represented as 0 in rx_queue and also deletes queue until now (later)
-            else { rx_queue_add (rx_tmp); if (serial_messages) { Serial.print (" Q+"); } }
+            else { rx_queue_add (rx_tmp); payload_tx_only (10, ((rx_queue_start*10)+rx_queue_count), 10, 48); if (serial_messages) { Serial.print (" Q+"); } }
             bitSet (sleep_lock,sleep_lock_orders_to_be_processed);
 //            if (serial_messages) { Serial.print (" Q val:"); Serial.print (rx_queue [rx_queue_start + rx_queue_count - 1].frame); Serial.print (" Q start:"); Serial.print (rx_queue_start); Serial.print (" Q count: "); Serial.print (rx_queue_count); }
             rx_last = rx_tmp ;
@@ -314,9 +326,22 @@ bool rf_trx (unsigned long to_send_payload) {
   }
 }
 
+void payload_send (unsigned char p1_bit, unsigned char p1_payload, unsigned char p2_bit, unsigned char p2_payload) {
+  // If no payload is present then bit should be > 8 to indicate no content (payloads are always copied)
+  union Frame tx_t ;
+  tx_t.frame = 0;
+  tx_t.d.target = my_id; // Arduino is responding with own ID as target (effectivelly target has become source for arduino to server communication)
+  tx_t.d.payload1 = p1_payload;
+  tx_t.d.payload2 = p2_payload;
+  if (p1_bit < 8) { bitSet (tx_t.d.order,p1_bit); }
+  if (p2_bit < 8) { bitSet (tx_t.d.order,p2_bit); }
+  rf_trx (tx_t.frame); // Can result in data not send in case there was another transmission ongoing, but these data can be lost and are not so valuable
+}
+
 void engine_change (unsigned int e, unsigned int o, bool f) {
   if (serial_messages) { Serial.print ("Engine "); Serial.print (e); Serial.print (" change by order "); Serial.print (o); Serial.print (" now is: "); Serial.println (millis ()); }
   if (e >= number_of_engines) { return; }
+  payload_tx_only (10, ((engines[e].operating*100)+(engines[e].last_status*10)+o), 10, 50+e);
   if ((engines[e].last_status != o) && (o == 1)) {
     // start move down
     if (f) { engines[e].last_status = o; }
@@ -330,7 +355,6 @@ void engine_change (unsigned int e, unsigned int o, bool f) {
     digitalWrite (engines[e].pin_on, LOW);
     digitalWrite (engines[e].pin_power, HIGH);
     engines[e].start = millis ();
-    delay (sleep_engine_change);
     return;
   }
   if ((engines[e].last_status != o) && (o == 2)) {
@@ -346,7 +370,6 @@ void engine_change (unsigned int e, unsigned int o, bool f) {
     digitalWrite (engines[e].pin_on, LOW);
     digitalWrite (engines[e].pin_power, HIGH);
     engines[e].start = millis ();
-    delay (sleep_engine_change);
     return;
   }
   if ((engines[e].last_status != o) && (o == 3)) {
@@ -357,7 +380,6 @@ void engine_change (unsigned int e, unsigned int o, bool f) {
     bitSet (sleep_lock,sleep_lock_orders_engine_running);
     digitalWrite (engines[e].pin_on, LOW);
     digitalWrite (engines[e].pin_power, HIGH);
-    delay (sleep_engine_change);
     return;
   }
   if ((engines[e].operating) && (o == 0)) {
@@ -393,18 +415,6 @@ void voltage_send (unsigned char p1, unsigned char bit_p2, unsigned char p2) {
   }
   bitSet (tx_t.d.order,voltage_orders_bit_position);
   //rf_tx_only (tx_t.frame); // replaced by rf_trx 
-  rf_trx (tx_t.frame); // Can result in data not send in case there was another transmission ongoing, but these data can be lost and are not so valuable
-}
-
-void payload_send (unsigned char p1_bit, unsigned char p1_payload, unsigned char p2_bit, unsigned char p2_payload) {
-  // If no payload is present then bit should be > 8 to indicate no content (payloads are always copied)
-  union Frame tx_t ;
-  tx_t.frame = 0;
-  tx_t.d.target = my_id; // Arduino is responding with own ID as target (effectivelly target has become source for arduino to server communication)
-  tx_t.d.payload1 = p1_payload;
-  tx_t.d.payload2 = p2_payload;
-  if (p1_bit < 8) { bitSet (tx_t.d.order,p1_bit); }
-  if (p2_bit < 8) { bitSet (tx_t.d.order,p2_bit); }
   rf_trx (tx_t.frame); // Can result in data not send in case there was another transmission ongoing, but these data can be lost and are not so valuable
 }
 
@@ -516,6 +526,7 @@ void process_orders () {
     else
       { // Change engines
         if (serial_messages) { Serial.print (" E: "); Serial.print (rx_queue [rx_queue_start].d.payload1-1); Serial.print (" to: "); Serial.print (rx_queue [rx_queue_start].d.payload2); }
+        payload_tx_only (10, ((rx_queue [rx_queue_start].d.payload1-1)*10+rx_queue [rx_queue_start].d.payload2+100), 10, 49);
         engine_change (rx_queue [rx_queue_start].d.payload1-1, rx_queue [rx_queue_start].d.payload2, true);
       } // Change engines
     bitClear (rx_queue [rx_queue_start].d.order,engine_orders_bit_position);
@@ -530,7 +541,7 @@ void process_orders () {
 
 void sleep_lock_validate () {
   unsigned char i;
-  delay (sleep_before_lock_validate);
+  Frame tmp_tx;
   if (bitRead (sleep_lock,sleep_lock_orders_engine_running) == 1) { // Engines blocking sleep
     bitClear (sleep_lock,sleep_lock_orders_engine_running);
     for (i = 0; i < number_of_engines; i++) { // Loop all engines
@@ -540,6 +551,7 @@ void sleep_lock_validate () {
 				  break; // We can break the cycle as we already know that sleep will be mot possible
         } // Engine running and should be running
         else { // Engine running, but should be shut down
+          payload_send (10,i, 10, 47); // TODO this is only debug notification can be removed in future
           engine_change (i,0,false);
         } // Engine running, but should be shut down
       } // Engine running
@@ -585,9 +597,10 @@ void loop() {
   }
   else
   { // active orders can not sleep
+    init_radio ();
     process_orders ();
-    sleep_lock_validate ();
     delay (sleep_during_sleep_lock);
+    sleep_lock_validate ();
   } // active orders can not sleep
   init_radio ();
   //if (voltage_read_ms > 0) { voltage_read (1,1,193,1,66); }

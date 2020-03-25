@@ -6,9 +6,9 @@ var ReentrantLock arduino_writer = new ReentrantLock
 var ReentrantLock persistence_lock = new ReentrantLock
 var ReentrantLock auto_runner_lock = new ReentrantLock
 var Integer running_persistence_read = 0
-val Integer sensor_default_hyst = 15
-val Integer sensor_default_dark = 100
-val Integer sensor_default_sunshine = 220
+val Integer sensor_default_hyst = 35
+val Integer sensor_default_dark = 130
+val Integer sensor_default_sunshine = 210
 val Integer default_lockout_time = 5 // default time in minutes to wait after engine run (valid for automation mode only)
 var Timer timer_main = null
 var String timer_queue = ""
@@ -32,7 +32,7 @@ rule "Startup"
           Thread::sleep (1000)
           if ( PERSISTENCE_Out.state.toString.length > 0 ) {
             logInfo ("Persistence", "Persistence read for "+p.name+" as "+PERSISTENCE_Out.state+" ("+PERSISTENCE_Out.state.toString.length+")")
-            p.postUpdate (PERSISTENCE_Out.state)
+            postUpdate (p.name, PERSISTENCE_Out.state.toString)
           }
           else {
             logInfo ("Persistence", "Persistence NOT read for "+p.name+" as "+PERSISTENCE_Out.state+" ("+PERSISTENCE_Out.state.toString.length+")")

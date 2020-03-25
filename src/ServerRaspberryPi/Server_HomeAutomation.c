@@ -74,7 +74,7 @@ struct radio433_item radio433_list[] = {
 unsigned char radio433_array_elements = (sizeof (radio433_list))/(sizeof (struct radio433_item)); 
 const char radio433_PIN_TX = 27;
 const char radio433_PIN_RX = 17;
-const char radio_433_send_repeat = 150;
+const char radio_433_send_repeat = 100;
 bool radio433_high = true;
 bool running = true;
 
@@ -100,8 +100,9 @@ const unsigned int send_loop_cycle_wait = 10; // delay in ms during one send loo
 const unsigned int send_loop_duration = 32; //duration of send attempt in seconds, recommed to be less than 32
 const unsigned int send_loop_sending_duration = 30; // duration of send itself measured value
 const unsigned int send_loop_cycles = send_loop_duration * 1000 / (send_loop_cycle_wait + send_loop_sending_duration); // number of cycles needed for one send
-const unsigned int send_loop_end_sleep = 123; // delay in ms after send before next send is processed
-const unsigned int send_ack_received_delay = 1000; // delay after ack was received
+const unsigned int send_loop_end_sleep_nrf = 321; // delay in ms after send before next send is processed
+const unsigned int send_loop_end_sleep_433 = 4747; // delay in ms after send before next send is processed
+const unsigned int send_ack_received_delay = 1234; // delay after ack was received
 unsigned int sleep_time = send_loop_cycle_wait * 1000; // technical calculation
 
 // PAYLOAD MASKS
@@ -143,7 +144,8 @@ const int max_queue_items_processed = 3; // Maximal number of items procesed bef
 // FILE FROM OPEN HAB
 const char* file_queue_openhab = "/tmp/RF24_queue.txt";
 const char* file_queue_process = "/tmp/RF24_in_progress.txt";
-const unsigned long file_read_delay = 100000; // delay between checks of queue file on us
+const unsigned long file_read_delay = 300000; // delay between checks of queue file in us
+const unsigned long file_open_delay = 500000; // delay between moving and opening of queue file in us
 
 // OPEN HAB CONNECTION REST
 const char *OH_LIGHT = "light";
@@ -390,7 +392,7 @@ void decodeMessage (unsigned long to_decode) {
     log_message (720,1,"Light %lu decoded as %u (p1) and %u (p2) from %u \n",to_decode,t.d.payload1, t.d.payload2, t.d.target);
     send_to_open_hab (t.d.target,2,t.d.payload2);
   }  // Light message
-  else {log_message (500,1,"Decoder %lu dropped as unknown\n",to_decode);}
+  else {log_message (500,1,"Decoder %lu dropped as unknown %u | %u | %u | %u\n",to_decode, t.d.target, t.d.payload1, t.d.payload2, t.d.order);}
   return;
 } // decode message
 
@@ -674,14 +676,14 @@ unsigned long send_msg (unsigned long long_message) {
         else {decodeMessage (received);} // TODO replace with queue processing
       }  // while end
     } while ((i < send_loop_cycles) && !ack_received);
-    usleep (send_loop_end_sleep);
+    usleep (send_loop_end_sleep_nrf);
   } // Sending via NRF
   else { // Sending via 433
     log_message (800,2,"Ready to send 433 via ID %d and key %d to %d engine %d action %d\n",r433_ID, r433_command,tmp_msg.d.target,tmp_msg.d.payload1,tmp_msg.d.payload2 );
-  	roidayan_sendButton(r433_ID, r433_command);	
-  	//radio433_sendButton(r433_ID, r433_command);	
+  	//roidayan_sendButton(r433_ID, r433_command);	
+  	radio433_sendButton(r433_ID, r433_command);	
     log_message (750,2,"Done sending 433 via ID %d and key %d to %d engine %d action %d\n",r433_ID, r433_command,tmp_msg.d.target,tmp_msg.d.payload1,tmp_msg.d.payload2 );
-    usleep (send_loop_end_sleep);
+    usleep (send_loop_end_sleep_433);
   } // Sending via 433
 }
 
@@ -718,6 +720,7 @@ int read_queue_from_file () {
   if (0 != access(file_queue_openhab, 0)) { log_message (900,1,"File %s did not exists, no queue read\n",file_queue_openhab); return 1;} 
   //block file for processing
   rename (file_queue_openhab, file_queue_process);
+  usleep (file_open_delay);
   queue_file = fopen (file_queue_process,"r");
   log_message (900,1,"File %s open\n",file_queue_process);
   while (!feof (queue_file))

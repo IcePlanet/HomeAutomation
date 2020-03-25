@@ -5,7 +5,7 @@ CFLAGS=-I. -I/usr/local/include/RF24 -L/usr/local/lib -lrf24
 DEPS = CommonAutomation.h
 OBJ=PiTest_HelloWorld.o
 PCOBJ=PiTest_HelloWorld_FROM_PC.o
-TOBJ=CodeFragments.c
+TOBJ=PiTest.o
 SOBJ=Server_HomeAutomation.o
 EXACUTABLES=pitest
 

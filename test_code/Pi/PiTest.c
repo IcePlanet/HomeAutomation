@@ -82,6 +82,27 @@ const unsigned long file_read_delay = 100000; // delay between checks of queue f
 unsigned long to_send; //ID of receiving arduino + last number identyfying if up 2, down 1, stop 0
 unsigned long target_id = 47; //target_id of arduino
 
+union Frame {
+    unsigned long frame;
+    struct {
+        unsigned char order;
+        unsigned char payload2;
+        unsigned char payload1;
+        unsigned char target;
+    } d;
+};
+
+const unsigned char rx_max_queue_size = 10;
+unsigned char rx_queue_start = 0;
+unsigned char rx_queue_count = 0;
+union Frame rx_tmp, rx_last;
+union Frame rx_queue [rx_max_queue_size];
+const unsigned char tx_max_queue_size = 10;
+unsigned char tx_queue_start = 0;
+unsigned char tx_queue_count = 0;
+union Frame tx_tmp, tx_last;
+union Frame tx_queue [tx_max_queue_size];
+const unsigned long rx_queue_test_loops = 100;
 
 int log_message (int level, int detail, const char* message, ...)
 {
@@ -290,7 +311,37 @@ int read_queue_from_file ()
   remove (file_queue_process);
 }
 
-int main(int argc, char** argv)
+bool rx_queue_add (union Frame a) {
+  unsigned char new_pos = rx_queue_start + rx_queue_count;
+  unsigned char i;
+  if (new_pos >= rx_max_queue_size) { 
+    if (rx_queue_start > 0) { // Can shift queue
+      for (i = 0; i < rx_queue_count; i++) { rx_queue [i] = rx_queue [i+rx_queue_start]; }
+      rx_queue_start = 0;
+      new_pos = rx_queue_start + rx_queue_count;
+    } // Can shift queue
+    else { return false; } // can not add
+  }
+  rx_queue [new_pos] = a;
+  rx_queue_count += 1;
+  return true;
+}
+
+bool rx_queue_remove () {
+  if (rx_queue_count > 0) { rx_queue_count -= 1; }
+  if (rx_queue_count == 0) { rx_queue_start = 0; }
+    else { rx_queue_start += 1; }
+  return true;
+}
+
+void rx_queue_print () {
+  unsigned char i;
+  printf (" S:%d C:%d >", rx_queue_start, rx_queue_count);
+  for (i = 0; i < rx_max_queue_size; i++) { printf (" %d:%lu",i, rx_queue [i].frame); }
+  printf ("<");
+}
+
+int main (int argc, char** argv)
 {
   bool nrf_sender = true;
   bool should_sleep = true;
@@ -300,24 +351,42 @@ int main(int argc, char** argv)
   unsigned long test_send;
   bool running = true;
   
-  log_message (10,1,"START SERVER FOR RF24\n");
+  log_message (10,1,"TEST SERVER START\n");
 
-  start_radio ();
+  for (i = 0; i < rx_queue_test_loops; i++) {
+    printf ("LOOP %d before=", i);
+    rx_queue_print() ;
+    if ( (rand() % 10) > 5 ) {
+      //REMOVE
+      rx_queue_remove ();
+      printf (" DEL ");
+    }
+    else {
+      rx_tmp.frame=i;
+      rx_queue_add (rx_tmp);
+      printf (" ADD %d ", i);
+    }
+    printf ("after=");
+    rx_queue_print() ;
+    printf (" LOOP %i END\n", i);
+  }
+  // start_radio ();
 
-  while (running)
-  {
-    read_queue_from_file ();
-    queue_log ();
-    i = 0;
-    while (queue_info ())
-    { // queue there
-      i++;
-      send_msg (dequeue ());
-      if (i >= max_queue_items_processed) {log_message (200,1,"Max queue items processed, checking queue files again\n"); should_sleep = false; break;}
-    } // queue there
-    if (should_sleep) {usleep (file_read_delay);} // sleeping before next queue check
-    should_sleep = true;
-    receive_msg (1000,0);
-  } //main while loop
-  stop_radio ();
+  // while (running)
+  // {
+    // read_queue_from_file ();
+    // queue_log ();
+    // i = 0;
+    // while (queue_info ())
+    // { // queue there
+      // i++;
+      // send_msg (dequeue ());
+      // if (i >= max_queue_items_processed) {log_message (200,1,"Max queue items processed, checking queue files again\n"); should_sleep = false; break;}
+    // } // queue there
+    // if (should_sleep) {usleep (file_read_delay);} // sleeping before next queue check
+    // should_sleep = true;
+    // receive_msg (1000,0);
+  // } //main while loop
+  // stop_radio ();
 } //main end
+
