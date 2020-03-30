@@ -27,13 +27,16 @@ Group gGF_Winter "Zimna zahrada" <groundfloor> (gGF)
 Group gFF "Poschodie" <firstfloor>
 Group gFF_Peter "Peter" <firstfloor> (gFF)
 
+Switch AUTO_RE_ENABLE "Auto re-enable"
+Group gAUTO_RE_ENABLE "All items to be re-enabled"
+
 // WHEN ADDING ITEMS DO NOT FORGET TO SETUP INIT VALUES IN STARTUP SECTION OF RULES
 
 Rollershutter Z1_S_PETER_BIGx11x1 "Peter dvere" <blinds> (gFF_Peter, gZO, gZ_ALL, gZ_South)
 Switch Z1_S_PETER_BIGxTRIGGER "Trigger to start automatic recalculation" (gS_light_southffxTRIGGER, gHOME_AWAYxTRIGGER, gNIGHT_TO_DAYxTRIGGER)
 Switch Z1_S_PETER_BIGxDAY_NIGHT_TRIGGER "Trigger to start on night start" (gDAY_NIGHTxTRIGGER)
 DateTime Z1_S_PETER_BIGxLastRunTime "Last run time"
-Number Z1_S_PETER_BIGxLastRunDirection "Last run direction for manual command 0:Stop; 1:DOWN; 2:UP for automated command it is always +10"
+Number Z1_S_PETER_BIGxLastRunDirection "Last run direction for manual command 0:Stop; 1:DOWN; 2:UP for automated command it is always +10" (gAUTO_RE_ENABLE)
 Number Z1_S_PETER_BIGxAutoManual "Automation or manual 0:No automation; 1:Automation 9:Ignore this settings"
 Number Z1_S_PETER_BIGxCoolingHeating "Cooling Heating None 0:None; 1:Heating; 2: Cooling; 9: Ignore this settings"
 Number Z1_S_PETER_BIGxPlants "Plants behind window 0:No plants; 1:Plants"
@@ -47,7 +50,7 @@ Rollershutter Z1_S_PETER_SMALLx12x1 "Peter okno" <blinds> (gFF_Peter, gZO, gZ_AL
 Switch Z1_S_PETER_SMALLxTRIGGER "Trigger to start automatic recalculation" (gS_light_southffxTRIGGER, gHOME_AWAYxTRIGGER, gNIGHT_TO_DAYxTRIGGER)
 Switch Z1_S_PETER_SMALLxDAY_NIGHT_TRIGGER "Trigger to start on night start" (gDAY_NIGHTxTRIGGER)
 DateTime Z1_S_PETER_SMALLxLastRunTime "Last run time"
-Number Z1_S_PETER_SMALLxLastRunDirection "Last run direction for manual command 0:Stop; 1:DOWN; 2:UP for automated command it is always +10"
+Number Z1_S_PETER_SMALLxLastRunDirection "Last run direction for manual command 0:Stop; 1:DOWN; 2:UP for automated command it is always +10" (gAUTO_RE_ENABLE)
 Number Z1_S_PETER_SMALLxAutoManual "Automation or manual 0:No automation; 1:Automation 9:Ignore this settings"
 Number Z1_S_PETER_SMALLxCoolingHeating "Cooling Heating None 0:None; 1:Heating; 2: Cooling; 9: Ignore this settings"
 Number Z1_S_PETER_SMALLxPlants "Plants behind window 0:No plants; 1:Plants"
@@ -61,7 +64,7 @@ Rollershutter Z0_S_LIVING_DOORx51x1 "Obyvacka dvere" <blinds> (gGF_Living, gZD, 
 Switch Z0_S_LIVING_DOORxTRIGGER "Trigger to start automatic recalculation" (gS_light_southffxTRIGGER, gHOME_AWAYxTRIGGER, gNIGHT_TO_DAYxTRIGGER)
 Switch Z0_S_LIVING_DOORxDAY_NIGHT_TRIGGER "Trigger to start on night start" (gDAY_NIGHTxTRIGGER)
 DateTime Z0_S_LIVING_DOORxLastRunTime "Last run time"
-Number Z0_S_LIVING_DOORxLastRunDirection "Last run direction for manual command 0:Stop; 1:DOWN; 2:UP for automated command it is always +10"
+Number Z0_S_LIVING_DOORxLastRunDirection "Last run direction for manual command 0:Stop; 1:DOWN; 2:UP for automated command it is always +10" (gAUTO_RE_ENABLE)
 Number Z0_S_LIVING_DOORxAutoManual "Automation or manual 0:No automation; 1:Automation 9:Ignore this settings"
 Number Z0_S_LIVING_DOORxCoolingHeating "Cooling Heating None 0:None; 1:Heating; 2: Cooling; 9: Ignore this settings"
 Number Z0_S_LIVING_DOORxPlants "Plants behind window 0:No plants; 1:Plants"
@@ -75,7 +78,7 @@ Rollershutter Z0_S_LIVING_WINDOWx51x2 "Obyvacka okno" <blinds> (gGF_Living, gZD,
 Switch Z0_S_LIVING_WINDOWxTRIGGER "Trigger to start automatic recalculation" (gS_light_southffxTRIGGER, gHOME_AWAYxTRIGGER, gNIGHT_TO_DAYxTRIGGER)
 Switch Z0_S_LIVING_WINDOWxDAY_NIGHT_TRIGGER "Trigger to start on night start" (gDAY_NIGHTxTRIGGER)
 DateTime Z0_S_LIVING_WINDOWxLastRunTime "Last run time"
-Number Z0_S_LIVING_WINDOWxLastRunDirection "Last run direction for manual command 0:Stop; 1:DOWN; 2:UP for automated command it is always +10"
+Number Z0_S_LIVING_WINDOWxLastRunDirection "Last run direction for manual command 0:Stop; 1:DOWN; 2:UP for automated command it is always +10" (gAUTO_RE_ENABLE)
 Number Z0_S_LIVING_WINDOWxAutoManual "Automation or manual 0:No automation; 1:Automation 9:Ignore this settings"
 Number Z0_S_LIVING_WINDOWxCoolingHeating "Cooling Heating None 0:None; 1:Heating; 2: Cooling; 9: Ignore this settings"
 Number Z0_S_LIVING_WINDOWxPlants "Plants behind window 0:No plants; 1:Plants"
@@ -89,7 +92,7 @@ Rollershutter Z0_S_WINTER_DOORx52x1 "Zimna zahrada dvere" <blinds> (gGF_Winter, 
 Switch Z0_S_WINTER_DOORxTRIGGER "Trigger to start automatic recalculation" (gS_light_southffxTRIGGER, gHOME_AWAYxTRIGGER, gNIGHT_TO_DAYxTRIGGER)
 Switch Z0_S_WINTER_DOORxDAY_NIGHT_TRIGGER "Trigger to start on night start" (gDAY_NIGHTxTRIGGER)
 DateTime Z0_S_WINTER_DOORxLastRunTime "Last run time"
-Number Z0_S_WINTER_DOORxLastRunDirection "Last run direction for manual command 0:Stop; 1:DOWN; 2:UP for automated command it is always +10"
+Number Z0_S_WINTER_DOORxLastRunDirection "Last run direction for manual command 0:Stop; 1:DOWN; 2:UP for automated command it is always +10" (gAUTO_RE_ENABLE)
 Number Z0_S_WINTER_DOORxAutoManual "Automation or manual 0:No automation; 1:Automation 9:Ignore this settings"
 Number Z0_S_WINTER_DOORxCoolingHeating "Cooling Heating None 0:None; 1:Heating; 2: Cooling; 9: Ignore this settings"
 Number Z0_S_WINTER_DOORxPlants "Plants behind window 0:No plants; 1:Plants"
@@ -103,7 +106,7 @@ Rollershutter Z0_S_WINTER_TERASAx52x2 "Zimna zahrada terasa" <blinds> (gGF_Winte
 Switch Z0_S_WINTER_TERASAxTRIGGER "Trigger to start automatic recalculation" (gS_light_southffxTRIGGER, gHOME_AWAYxTRIGGER, gNIGHT_TO_DAYxTRIGGER)
 Switch Z0_S_WINTER_TERASAxDAY_NIGHT_TRIGGER "Trigger to start on night start" (gDAY_NIGHTxTRIGGER)
 DateTime Z0_S_WINTER_TERASAxLastRunTime "Last run time"
-Number Z0_S_WINTER_TERASAxLastRunDirection "Last run direction for manual command 0:Stop; 1:DOWN; 2:UP for automated command it is always +10"
+Number Z0_S_WINTER_TERASAxLastRunDirection "Last run direction for manual command 0:Stop; 1:DOWN; 2:UP for automated command it is always +10" (gAUTO_RE_ENABLE)
 Number Z0_S_WINTER_TERASAxAutoManual "Automation or manual 0:No automation; 1:Automation 9:Ignore this settings"
 Number Z0_S_WINTER_TERASAxCoolingHeating "Cooling Heating None 0:None; 1:Heating; 2: Cooling; 9: Ignore this settings"
 Number Z0_S_WINTER_TERASAxPlants "Plants behind window 0:No plants; 1:Plants"
@@ -117,7 +120,7 @@ Rollershutter Z0_S_WINTER_CHODNIKx52x3 "Zimna zahrada chodnik" <blinds> (gGF_Win
 Switch Z0_S_WINTER_CHODNIKxTRIGGER "Trigger to start automatic recalculation" (gS_light_southffxTRIGGER, gHOME_AWAYxTRIGGER, gNIGHT_TO_DAYxTRIGGER)
 Switch Z0_S_WINTER_CHODNIKxDAY_NIGHT_TRIGGER "Trigger to start on night start" (gDAY_NIGHTxTRIGGER)
 DateTime Z0_S_WINTER_CHODNIKxLastRunTime "Last run time"
-Number Z0_S_WINTER_CHODNIKxLastRunDirection "Last run direction for manual command 0:Stop; 1:DOWN; 2:UP for automated command it is always +10"
+Number Z0_S_WINTER_CHODNIKxLastRunDirection "Last run direction for manual command 0:Stop; 1:DOWN; 2:UP for automated command it is always +10" (gAUTO_RE_ENABLE)
 Number Z0_S_WINTER_CHODNIKxAutoManual "Automation or manual 0:No automation; 1:Automation 9:Ignore this settings"
 Number Z0_S_WINTER_CHODNIKxCoolingHeating "Cooling Heating None 0:None; 1:Heating; 2: Cooling; 9: Ignore this settings"
 Number Z0_S_WINTER_CHODNIKxPlants "Plants behind window 0:No plants; 1:Plants"

@@ -6,8 +6,16 @@
 #include "/usr/local/include/RF24/RF24.h"
 
 #include <limits.h>     /* for CHAR_BIT */
+#include <sys/resource.h>     /* for priority changes */
 
 using namespace std;
+
+// MOST OFTEN MODIFIED CONSTANTS
+
+const char* version_number = "1.0.0";
+const char* version_text = "First versioned code";
+const bool log_to_screen = false;
+const bool log_to_syslog = true;
 
 // Hardware configuration
 // Radio CE Pin, CSN Pin, SPI Speed
@@ -100,8 +108,8 @@ const unsigned int send_loop_cycle_wait = 10; // delay in ms during one send loo
 const unsigned int send_loop_duration = 32; //duration of send attempt in seconds, recommed to be less than 32
 const unsigned int send_loop_sending_duration = 30; // duration of send itself measured value
 const unsigned int send_loop_cycles = send_loop_duration * 1000 / (send_loop_cycle_wait + send_loop_sending_duration); // number of cycles needed for one send
-const unsigned int send_loop_end_sleep_nrf = 321; // delay in ms after send before next send is processed
-const unsigned int send_loop_end_sleep_433 = 4747; // delay in ms after send before next send is processed
+const unsigned int send_loop_end_sleep_nrf = 3; // delay in s after send before next send is processed
+const unsigned int send_loop_end_sleep_433 = 7; // delay in s after send before next send is processed
 const unsigned int send_ack_received_delay = 1234; // delay after ack was received
 unsigned int sleep_time = send_loop_cycle_wait * 1000; // technical calculation
 
@@ -118,8 +126,6 @@ const unsigned long mask_long_retransfer = mask_retransfer_send;
 // LOG SETTINGS
 const int log_level = 800; //Log level, the lower number the more priority log, so lower level means less messages
 const char* timeformat = "%Y%m%d%H%M%S";
-const bool log_to_screen = false;
-const bool log_to_syslog = true;
 const unsigned int log_level_emergency = 100;
 const unsigned int log_level_alert = 200;
 const unsigned int log_level_critical = 300;
@@ -166,6 +172,11 @@ char * oh_tpl = (char *)"POST %s%s HTTP/1.0\r\n"
         "\r\n"
         "%s";
 
+// PRIORITY
+id_t my_pid;
+const int which_prio = PRIO_PROCESS;
+const int radio_prio = -15;
+const int normal_prio = 15;
 
 int log_message (int level, int detail, const char* message, ...) {
   struct timeval tv;
@@ -676,14 +687,19 @@ unsigned long send_msg (unsigned long long_message) {
         else {decodeMessage (received);} // TODO replace with queue processing
       }  // while end
     } while ((i < send_loop_cycles) && !ack_received);
-    usleep (send_loop_end_sleep_nrf);
+    if (!ack_received) {
+      log_message (570,2,"%lu - Send attempts %d used at %lu from %lu missing ack\n",content,i,tv.tv_sec,send_start);
+    }
+    sleep (send_loop_end_sleep_nrf);
   } // Sending via NRF
   else { // Sending via 433
     log_message (800,2,"Ready to send 433 via ID %d and key %d to %d engine %d action %d\n",r433_ID, r433_command,tmp_msg.d.target,tmp_msg.d.payload1,tmp_msg.d.payload2 );
   	//roidayan_sendButton(r433_ID, r433_command);	
+    setpriority(which_prio, my_pid, radio_prio);
   	radio433_sendButton(r433_ID, r433_command);	
+    setpriority(which_prio, my_pid, normal_prio);
     log_message (750,2,"Done sending 433 via ID %d and key %d to %d engine %d action %d\n",r433_ID, r433_command,tmp_msg.d.target,tmp_msg.d.payload1,tmp_msg.d.payload2 );
-    usleep (send_loop_end_sleep_433);
+    sleep (send_loop_end_sleep_433);
   } // Sending via 433
 }
 
@@ -761,10 +777,12 @@ int main(int argc, char** argv) {
   unsigned long test_send;
   
   if (log_to_syslog) { openlog("HomeAutomationServer", LOG_PID, LOG_USER); }
-  log_message (710,1,"START SERVER FOR RF24\n");
+  log_message (710,1,"START SERVER FOR RF24 VERSION: %s %s\n", version_number, version_text);
   signal(SIGINT, signal_callback_handler);
   signal(SIGTERM, signal_callback_handler);
   signal(SIGQUIT, signal_callback_handler);
+  my_pid = getpid();
+  
   empty_frame.frame = 0;
   
   start_radio ();

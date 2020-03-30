@@ -67,10 +67,10 @@ const unsigned int number_of_engines = 1;
 const unsigned char engine_orders_bit_position = 4;
 const unsigned int engine_direction_switch_delay = 789; // delay before direction of engine movement can be switched to other direction
 struct engine_control {
-  int pin_power; // Power for the relay board
-  int pin_on; // relay switching on the power to engine default (NC) OFF, when triggered (NO) ON
-  int pin_down; // relay switching direction of engine, default (NC) UP, when triggered (NO) DOWN (pin_down can be 0 if there is no engine, but simple switch)
-  int last_status;
+  unsigned int pin_power; // Power for the relay board
+  unsigned int pin_on; // relay switching on the power to engine default (NC) OFF, when triggered (NO) ON
+  unsigned int pin_down; // relay switching direction of engine, default (NC) UP, when triggered (NO) DOWN (pin_down can be 0 if there is no engine, but simple switch)
+  unsigned int last_status;
   unsigned long start;
   bool operating;
   unsigned long runtime;
@@ -287,7 +287,7 @@ bool rf_trx (unsigned long to_send_payload) {
           if (rx_tmp.d.target == my_id) { rf_tx_only (rx_tmp.frame); if (serial_messages) { Serial.print (" ACK: "); Serial.print (rx_tmp.frame); Serial.print (" T: ");Serial.print (millis ()); } } // Sending ack if it was for me
           if (rx_tmp.frame != rx_last.frame) { // New data have been received
             if ((rx_tmp.d.order & orders_mask) == 0) { rx_queue_start = 0; rx_queue_count = 1; rx_queue[rx_queue_start].frame = 0; if (serial_messages) { Serial.print (" STOP ALL "); } } // stop all message is represented as 0 in rx_queue and also deletes queue until now (later)
-            else { rx_queue_add (rx_tmp); payload_tx_only (10, ((rx_queue_start*10)+rx_queue_count), 10, 48); if (serial_messages) { Serial.print (" Q+"); } }
+            else { rx_queue_add (rx_tmp); /*DEBUG:payload_tx_only (10, ((rx_queue_start*10)+rx_queue_count), 10, 48);*/ if (serial_messages) { Serial.print (" Q+"); } }
             bitSet (sleep_lock,sleep_lock_orders_to_be_processed);
 //            if (serial_messages) { Serial.print (" Q val:"); Serial.print (rx_queue [rx_queue_start + rx_queue_count - 1].frame); Serial.print (" Q start:"); Serial.print (rx_queue_start); Serial.print (" Q count: "); Serial.print (rx_queue_count); }
             rx_last = rx_tmp ;
@@ -341,37 +341,51 @@ void payload_send (unsigned char p1_bit, unsigned char p1_payload, unsigned char
 void engine_change (unsigned int e, unsigned int o, bool f) {
   if (serial_messages) { Serial.print ("Engine "); Serial.print (e); Serial.print (" change by order "); Serial.print (o); Serial.print (" now is: "); Serial.println (millis ()); }
   if (e >= number_of_engines) { return; }
-  payload_tx_only (10, ((engines[e].operating*100)+(engines[e].last_status*10)+o), 10, 50+e);
+  //DEBUG:payload_tx_only (10, ((engines[e].operating*100)+(engines[e].last_status*10)+o), 10, 10+e);
   if ((engines[e].last_status != o) && (o == 1)) {
     // start move down
     if (f) { engines[e].last_status = o; }
+    //DEBUG:payload_tx_only (10, ((engines[e].operating*100)+(engines[e].last_status*10)+o), 10, 110+e);
     if (engines[e].operating) {
       digitalWrite (engines[e].pin_on, HIGH); // stop power to the engine
       delay (engine_direction_switch_delay);
     } // end of delay if engine was operating (most probaly in oposite direction)
+    //DEBUG:payload_tx_only (10, ((engines[e].operating*100)+(engines[e].last_status*10)+o), 10, 120+e);
     engines[e].operating = true;
     bitSet (sleep_lock,sleep_lock_orders_engine_running);
+    //DEBUG:payload_tx_only (10, ((engines[e].operating*100)+(engines[e].last_status*10)+o), 10, 130+e);
     if (engines[e].pin_down != 0) { digitalWrite (engines[e].pin_down, LOW); }
+    //DEBUG:payload_tx_only (10, ((engines[e].operating*100)+(engines[e].last_status*10)+o), 10, 140+e);
     digitalWrite (engines[e].pin_on, LOW);
     digitalWrite (engines[e].pin_power, HIGH);
+    //DEBUG:payload_tx_only (10, ((engines[e].operating*100)+(engines[e].last_status*10)+o), 10, 150+e);
     engines[e].start = millis ();
+    //DEBUG:payload_tx_only (10, ((engines[e].operating*100)+(engines[e].last_status*10)+o), 10, 100+e);
     return;
   }
+  //DEBUG:payload_tx_only (10, ((engines[e].operating*100)+(engines[e].last_status*10)+o), 10, 20+e);
   if ((engines[e].last_status != o) && (o == 2)) {
     // start move up
     if (f) { engines[e].last_status = o; }
+    //DEBUG:payload_tx_only (10, ((engines[e].operating*100)+(engines[e].last_status*10)+o), 10, 210+e);
     if (engines[e].operating) {
       digitalWrite (engines[e].pin_on, HIGH); // stop power to the engine
       delay (engine_direction_switch_delay);
     } // end of delay if engine was operating (most probaly in oposite direction)
+    //DEBUG:payload_tx_only (10, ((engines[e].operating*100)+(engines[e].last_status*10)+o), 10, 220+e);
     engines[e].operating = true;
     bitSet (sleep_lock,sleep_lock_orders_engine_running);
+    //DEBUG:payload_tx_only (10, ((engines[e].operating*100)+(engines[e].last_status*10)+o), 10, 230+e);
     if (engines[e].pin_down != 0) { digitalWrite (engines[e].pin_down, HIGH); }
+    //DEBUG:payload_tx_only (10, ((engines[e].operating*100)+(engines[e].last_status*10)+o), 10, 240+e);
     digitalWrite (engines[e].pin_on, LOW);
     digitalWrite (engines[e].pin_power, HIGH);
+    //DEBUG:payload_tx_only (10, ((engines[e].operating*100)+(engines[e].last_status*10)+o), 10, 250+e);
     engines[e].start = millis ();
+    //DEBUG:payload_tx_only (10, ((engines[e].operating*100)+(engines[e].last_status*10)+o), 10, 200+e);
     return;
   }
+  //DEBUG:payload_tx_only (10, ((engines[e].operating*100)+(engines[e].last_status*10)+o), 10, 130+e);
   if ((engines[e].last_status != o) && (o == 3)) {
     // switch on
     if (f) { engines[e].last_status = o; }
@@ -382,6 +396,7 @@ void engine_change (unsigned int e, unsigned int o, bool f) {
     digitalWrite (engines[e].pin_power, HIGH);
     return;
   }
+  //DEBUG:payload_tx_only (10, ((engines[e].operating*100)+(engines[e].last_status*10)+o), 10, 140+e);
   if ((engines[e].operating) && (o == 0)) {
     // stop
     if (f) { engines[e].last_status = o; }
@@ -526,7 +541,7 @@ void process_orders () {
     else
       { // Change engines
         if (serial_messages) { Serial.print (" E: "); Serial.print (rx_queue [rx_queue_start].d.payload1-1); Serial.print (" to: "); Serial.print (rx_queue [rx_queue_start].d.payload2); }
-        payload_tx_only (10, ((rx_queue [rx_queue_start].d.payload1-1)*10+rx_queue [rx_queue_start].d.payload2+100), 10, 49);
+        //DEBUG:payload_tx_only (10, ((rx_queue [rx_queue_start].d.payload1-1)*10+rx_queue [rx_queue_start].d.payload2), 10, 49);
         engine_change (rx_queue [rx_queue_start].d.payload1-1, rx_queue [rx_queue_start].d.payload2, true);
       } // Change engines
     bitClear (rx_queue [rx_queue_start].d.order,engine_orders_bit_position);
@@ -541,7 +556,6 @@ void process_orders () {
 
 void sleep_lock_validate () {
   unsigned char i;
-  Frame tmp_tx;
   if (bitRead (sleep_lock,sleep_lock_orders_engine_running) == 1) { // Engines blocking sleep
     bitClear (sleep_lock,sleep_lock_orders_engine_running);
     for (i = 0; i < number_of_engines; i++) { // Loop all engines
@@ -567,7 +581,7 @@ void setup() {
   engines [0].pin_power = 6;
   engines [0].pin_on = 5;
   engines [0].pin_down = 3;
-  engines [0].last_status = -1;
+  engines [0].last_status = 0;
   engines [0].operating = false;
   engines [0].runtime = 30000; //miliseconds how long operate engine (not accurate)
   for (i = 0; i < number_of_engines; i++) {

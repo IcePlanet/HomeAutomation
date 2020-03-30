@@ -20,6 +20,7 @@ sitemap novaky label="Doma"
                 Setpoint item=S_light_southffxDarkTreshold minValue=0 maxValue=255 step=5
                 Setpoint item=S_light_southffxSunshineTreshold minValue=0 maxValue=255 step=5
                 Setpoint item=S_light_southffxHysteresis minValue=0 maxValue=50 step=1
+                Switch item=AUTO_RE_ENABLE mappings=[ON="Re-Enable"]
         }
         Frame label="TEST" {
                 Switch  item=vent_niveau_3 mappings=[ON="TEST"]

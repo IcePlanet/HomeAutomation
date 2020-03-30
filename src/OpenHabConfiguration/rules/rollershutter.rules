@@ -32,7 +32,7 @@ rule "Startup"
           Thread::sleep (1000)
           if ( PERSISTENCE_Out.state.toString.length > 0 ) {
             logInfo ("Persistence", "Persistence read for "+p.name+" as "+PERSISTENCE_Out.state+" ("+PERSISTENCE_Out.state.toString.length+")")
-            postUpdate (p.name, PERSISTENCE_Out.state.toString)
+            postUpdate (p.name.toString, PERSISTENCE_Out.state.toString)
           }
           else {
             logInfo ("Persistence", "Persistence NOT read for "+p.name+" as "+PERSISTENCE_Out.state+" ("+PERSISTENCE_Out.state.toString.length+")")
@@ -116,9 +116,9 @@ rule "Write_Persistence"
   when
     Member of gPersistent changed
   then
-    logInfo ("Rollershutter", "Writing persistence for:" + triggeringItem.name)
     if ( running_persistence_read == 0 ) {
       try {
+        logInfo ("Rollershutter", "Writing persistence for:" + triggeringItem.name)
         persistence_lock.lock()
         PERSISTENCE_Args.sendCommand("-W -a "+triggeringItem.name+" -v "+triggeringItem.state)
         PERSISTENCE.sendCommand(ON)
@@ -130,6 +130,19 @@ rule "Write_Persistence"
           persistence_lock.unlock()
       } //finally
     }
+end
+
+rule "Re-enable auto mode"
+  when
+    Item AUTO_RE_ENABLE changed from OFF to ON
+  then
+    gAUTO_RE_ENABLE.getMembers.forEach [p | 
+      if ( ( p.state != NULL ) && ((p.state as Number) < 10) ) {
+        logInfo ("Rollershutter", "Item " + p.name + " changed state from " + p.state as Number + " to " +((p.state as Number) + 10))
+        postUpdate (p.name.toString, ((p.state as Number) + 10).toString)
+      }
+    ]
+    triggeringItem.sendCommand(OFF)
 end
 
 rule "Timer_expired"
@@ -189,7 +202,7 @@ rule "direct_run_gZx_group"
         //postUpdate (split_part0 + "xLastRunDirection",0) //Commented out as for stop we keep last direction used before (important for automation recovery - if uncommented the automation will never pick up stopped run)
         postUpdate (split_part0 + "xLastRunTime", new DateTimeType().toString)
       }
-      logInfo("Rollershutter", "Member " + triggeringItem.name + " received " + receivedCommand + " translated to" + split_part1 + "+" + split_part2 )
+      logInfo("Rollershutter", "Member " + triggeringItem.name + " received " + receivedCommand + " translated to " + split_part1 + "+" + split_part2 )
     }catch(Throwable t) {}
     finally {
         arduino_writer.unlock()
