@@ -1,4 +1,7 @@
-# To be copied to /etc/cron.d/home_automation.cron
-# After copy systemctl reload crond must be executed
-
-47 0 * * 0 openhab /usr/local/bin/simple_persistence.sh -C > /var/log/home_automation_persistence.log 2>&1
+# To be copied to /etc/cron.d/home_automation.cron sudo cp /usr/src/HomeAutomation_Novaky/home_automation.cron /etc/cron.d/home_automation
+# File permissions must be -rw-r--r--
+# After copy sudo systemctl restart crond must be executed
+#
+47 0 * * 0 openhab /usr/local/bin/simple_persistence.sh -C >> /tmp/home_automation_persistence_cron.log 2>&1
+0 7 * * * openhab /usr/local/bin/day_night_switch.sh -S ON >> /tmp/day_night_switch_cron.log 2>&1
+0 22 * * * openhab /usr/local/bin/day_night_switch.sh -S OFF >> /tmp/day_night_switch_cron.log 2>&1

@@ -9,7 +9,8 @@ RF24 radio(7, 8);
 
 // MY ID
 //const unsigned char my_id = 12; // Test device
-const unsigned char my_id = 11; // 1st floor Peter BIG
+//const unsigned char my_id = 11; // 1st floor Peter BIG
+const unsigned char my_id = 51; // Retransmit as 433
 
 // Broadcast ID
 const unsigned char broadcast_id = 255;
@@ -20,6 +21,34 @@ const unsigned char server_id = 1;
 
 // Messages mode (if to write messages to serial)
 const bool serial_messages = false;
+
+// Livolo settings
+// Livolo 433 code based on https://github.com/bitlinker/LivoloTx/blob/master/LivoloTx/LivoloTx.cpp and https://forum.arduino.cc/index.php?topic=153525.60
+#define LIVOLO_PREAMBLE_DURATION 525
+#define LIVOLO_ZERO_DURATION 120
+#define LIVOLO_ONE_DURATION 315
+#define LIVOLO_NUM_REPEATS 150
+const int livolo_mTxPin = A0;
+bool livolo_mIsHigh = false;
+struct radio433_item {
+  unsigned char target; // Original target in openhab
+  unsigned char engine; // Original engine number from openhab
+  unsigned int remoteID; // Remote ID to be used for alternative sending via 433 // real remote IDs: 6400; 19303; 23783; 26339; 26348 tested "virtual" remote IDs: 10550; 8500; 7400
+  unsigned char keycodeUP; // Remote keycode to be used for alternative sending via 433 UP // keycodes #1: 0, #2: 96, #3: 120, #4: 24, #5: 80=108, #6: 48=72, #7: 108=48, #8: 12, #9: 72=80; #10: 40, #OFF: 106
+  unsigned char keycodeDOWN; // Remote keycode to be used for alternative sending via 433 DOWN // keycodes #1: 0, #2: 96, #3: 120, #4: 24, #5: 80, #6: 48, #7: 108, #8: 12, #9: 72; #10: 40, #OFF: 106
+  unsigned char keycodeSTOP; // If 0 instead of stop keycode the keycode of last command is used
+  unsigned char lastKeycode; // Last keycode send out (247 means nothing send out until now, or stop was the last command)
+  bool nrf_send; // If to send NRF (together with 433 for the same target/engine combination)
+};
+struct radio433_item radio433_list[] = {
+  { 51, 0, 6400, 120, 96, 0, 247, false},
+  { 51, 1, 19303, 120, 96, 0, 247, false},
+  { 51, 2, 7400, 80, 48, 0, 247, true},
+  { 51, 3, 7400, 108, 12, 0, 247, true},
+  { 51, 4, 7400, 72, 40, 0, 247, true}
+};
+unsigned char radio433_array_elements = (sizeof (radio433_list))/(sizeof (struct radio433_item)); 
+const unsigned long livolo_sleep_after_send = 3470;  // Miliseconds to sleep after 433 send completed
 
 // RADIO definition
 const unsigned int radio_power_pin = 9;
@@ -63,7 +92,7 @@ union Frame tx_queue [tx_max_queue_size];
 
 // ENGINES definition
 // For simplification the engine pins are HIGH due to the way how relay board is designed (can be done also with low as default but this is little bit more complicated as the pin_power is common for whole board (2, 4, 6 relays))
-const unsigned int number_of_engines = 1;
+const unsigned int number_of_engines = 5;
 const unsigned char engine_orders_bit_position = 4;
 const unsigned int engine_direction_switch_delay = 789; // delay before direction of engine movement can be switched to other direction
 struct engine_control {
@@ -338,7 +367,64 @@ void payload_send (unsigned char p1_bit, unsigned char p1_payload, unsigned char
   rf_trx (tx_t.frame); // Can result in data not send in case there was another transmission ongoing, but these data can be lost and are not so valuable
 }
 
-void engine_change (unsigned int e, unsigned int o, bool f) {
+void livolo_tx(bool value)
+{
+  digitalWrite(livolo_mTxPin, value ? HIGH : LOW);
+}
+
+void livolo_sendOne()
+{
+  delayMicroseconds(LIVOLO_ONE_DURATION);
+  livolo_mIsHigh = !livolo_mIsHigh;
+  livolo_tx(livolo_mIsHigh);
+}
+
+void livolo_sendZero()
+{
+  delayMicroseconds(LIVOLO_ZERO_DURATION);
+  livolo_tx(!livolo_mIsHigh);
+  delayMicroseconds(LIVOLO_ZERO_DURATION);
+  livolo_tx(livolo_mIsHigh);
+}
+
+void livolo_sendPreamble()
+{
+  livolo_tx(true);
+  delayMicroseconds(LIVOLO_PREAMBLE_DURATION);
+  livolo_tx(false);
+  livolo_mIsHigh = false;
+}
+
+void livolo_sendCommand(uint32_t command, uint8_t numBits)
+{
+  for (uint8_t repeat = 0; repeat < LIVOLO_NUM_REPEATS; ++repeat)
+  {
+    uint32_t mask = (1 << (numBits - 1));
+    livolo_sendPreamble();
+    for (uint8_t i = numBits; i > 0; --i)
+    {
+      if ((command & mask) > 0)
+      {
+        livolo_sendOne();
+      }
+      else
+      {
+        livolo_sendZero();
+      }
+      mask >>= 1;
+    }
+  }
+  livolo_tx(false);
+}
+
+void livolo_sendButton(uint16_t remoteId, uint8_t keyId)
+{
+  // 7 bit Key Id and 16 bit Remote Id
+  uint32_t command = ((uint32_t)keyId & 0x7F) | (remoteId << 7);
+  livolo_sendCommand(command, 23);
+}
+
+void engine_change_old (unsigned int e, unsigned int o, bool f) {
   if (serial_messages) { Serial.print ("Engine "); Serial.print (e); Serial.print (" change by order "); Serial.print (o); Serial.print (" now is: "); Serial.println (millis ()); }
   if (e >= number_of_engines) { return; }
   //DEBUG:payload_tx_only (10, ((engines[e].operating*100)+(engines[e].last_status*10)+o), 10, 10+e);
@@ -406,6 +492,50 @@ void engine_change (unsigned int e, unsigned int o, bool f) {
     digitalWrite (engines[e].pin_power, HIGH);
     return;
   }
+}
+
+void engine_change (unsigned int e, unsigned int o, bool f) {
+  unsigned int i = 0;
+  unsigned int radio433_element;
+  unsigned int r433_ID = 0; // Remote ID to be used for alternative sending via 433 // real remote IDs: 6400; 19303; 23783 tested "virtual" remote IDs: 10550; 8500; 7400
+  unsigned char r433_command; // Remote keycode to be used for actual send via 433// keycodes #1: 0, #2: 96, #3: 120, #4: 24, #5: 80, #6: 48, #7: 108, #8: 12, #9: 72; #10: 40, #OFF: 106
+  unsigned char r433_up; // Remote keycode to be used for alternative sending via 433 UP // keycodes #1: 0, #2: 96, #3: 120, #4: 24, #5: 80, #6: 48, #7: 108, #8: 12, #9: 72; #10: 40, #OFF: 106
+  unsigned char r433_down; // Remote keycode to be used for alternative sending via 433 DOWN // keycodes #1: 0, #2: 96, #3: 120, #4: 24, #5: 80, #6: 48, #7: 108, #8: 12, #9: 72; #10: 40, #OFF: 106
+  unsigned char r433_stop; // If 0 instead of stop keycode the keycode of last command is used
+  unsigned char r433_last; // Last keycode send out (247 means nothing send out until now, or stop was the last command)
+  if (serial_messages) { Serial.print ("Engine "); Serial.print (e); Serial.print (" change by order "); Serial.print (o); Serial.print (" now is: "); Serial.println (millis ()); }
+  if (e >= number_of_engines) { return; }
+  for(i = 0; i < radio433_array_elements; i++) {
+    if ((radio433_list[i].target == my_id) && (radio433_list[i].engine == e))
+    { // 433 to be used for this target and engine
+      r433_ID = radio433_list[i].remoteID;
+      if (o == 0) { // STOP
+        if (radio433_list[i].keycodeSTOP == 0) {
+          r433_command = radio433_list[i].lastKeycode;
+        }
+        else {
+          r433_command = radio433_list[i].keycodeSTOP;
+        }
+      } // STOP
+      else {
+        if (o == 1 ) { // DOWN
+          r433_command = radio433_list[i].keycodeDOWN;
+          radio433_list[i].lastKeycode = r433_command; 
+        } // DOWN
+        else {
+          if (o == 2 ) { // UP
+            r433_command = radio433_list[i].keycodeUP;
+            radio433_list[i].lastKeycode = r433_command; 
+          }  // UP
+        }
+      }
+      break;
+    } // 433 to be used for this target and engine
+  }
+  if (r433_ID !=0 ) {
+    livolo_sendButton (r433_ID, r433_command);
+    delay (livolo_sleep_after_send);
+  } // We have data for this engine and send out 433
 }
 
 void engine_stop_all () {
@@ -559,18 +689,6 @@ void sleep_lock_validate () {
   unsigned char i;
   if (bitRead (sleep_lock,sleep_lock_orders_engine_running) == 1) { // Engines blocking sleep
     bitClear (sleep_lock,sleep_lock_orders_engine_running);
-    for (i = 0; i < number_of_engines; i++) { // Loop all engines
-      if (engines[i].operating) { // Engine running
-        if ((millis () - engines[i].start < engines[i].runtime) || (engines[i].pin_down == 0)) { // Engine running and should be running (either based on time or based on fact that it is switch with unlimitd runtime pin_down == 0)
-          bitSet (sleep_lock,sleep_lock_orders_engine_running);
-				  break; // We can break the cycle as we already know that sleep will be mot possible
-        } // Engine running and should be running
-        else { // Engine running, but should be shut down
-          payload_send (10,i, 10, 47); // TODO this is only debug notification can be removed in future
-          engine_change (i,0,false);
-        } // Engine running, but should be shut down
-      } // Engine running
-    } // Loop all engines
   } // Engines blocking sleep
 } // sleep_lock_validate
 
@@ -578,23 +696,9 @@ void setup() {
   unsigned int i;
   if (serial_messages) { Serial.begin (9600); printf_begin (); Serial.println ("START");}
   analogReference( INTERNAL );
-  if (serial_messages) { Serial.println ("Setting engine pins"); }
-  engines [0].pin_power = 6;
-  engines [0].pin_on = 5;
-  engines [0].pin_down = 3;
-  engines [0].last_status = 0;
-  engines [0].operating = false;
-  engines [0].runtime = 30000; //miliseconds how long operate engine (not accurate)
-  for (i = 0; i < number_of_engines; i++) {
-    pinMode (engines[i].pin_down, OUTPUT);
-    digitalWrite (engines[i].pin_down, HIGH);
-    pinMode (engines[i].pin_on, OUTPUT);
-    digitalWrite (engines[i].pin_on, HIGH);
-    pinMode (engines[i].pin_power, OUTPUT);
-    digitalWrite (engines[i].pin_power, HIGH);
-    engines[i].last_status = 0;
-  }
   rx_last.frame = 0;
+  pinMode (livolo_mTxPin, OUTPUT);
+  digitalWrite (livolo_mTxPin, LOW);
   if (serial_messages) { Serial.println ("Setup finished starting main loop"); }
 }
 
@@ -615,7 +719,7 @@ void loop() {
     init_radio ();
     process_orders ();
     delay (sleep_during_sleep_lock);
-    sleep_lock_validate ();
+    //sleep_lock_validate ();
   } // active orders can not sleep
   init_radio ();
   //if (voltage_read_ms > 0) { voltage_read (1,1,193,1,66); }

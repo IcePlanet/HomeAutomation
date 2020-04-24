@@ -12,8 +12,8 @@ using namespace std;
 
 // MOST OFTEN MODIFIED CONSTANTS
 
-const char* version_number = "1.0.0";
-const char* version_text = "First versioned code";
+const char* version_number = "1.1.0-dev+006";
+const char* version_text = "Added general enable/disable boolean for 433 radio";
 const bool log_to_screen = false;
 const bool log_to_syslog = true;
 
@@ -69,14 +69,15 @@ struct radio433_item {
   unsigned char keycodeDOWN; // Remote keycode to be used for alternative sending via 433 DOWN // keycodes #1: 0, #2: 96, #3: 120, #4: 24, #5: 80, #6: 48, #7: 108, #8: 12, #9: 72; #10: 40, #OFF: 106
   unsigned char keycodeSTOP; // If 0 instead of stop keycode the keycode of last command is used
   unsigned char lastKeycode; // Last keycode send out (247 means nothing send out until now, or stop was the last command)
+  bool nrf_send; // If to send NRF (together with 433 for the same target/engine combination)
 };
 
 struct radio433_item radio433_list[] = {
-  { 51, 1, 6400, 120, 96, 0, 247},
-  { 51, 2, 19303, 120, 96, 0, 247},
-  { 52, 1, 7400, 80, 48, 0, 247},
-  { 52, 2, 7400, 108, 12, 0, 247},
-  { 52, 3, 7400, 72, 40, 0, 247}
+  { 51, 1, 6400, 120, 96, 0, 247, false},
+  { 51, 2, 19303, 24, 96, 0, 247, false},
+  { 52, 1, 7400, 80, 48, 0, 247, false},
+  { 52, 2, 7400, 108, 12, 0, 247, false},
+  { 52, 3, 7400, 72, 40, 0, 247, false}
 };
 
 unsigned char radio433_array_elements = (sizeof (radio433_list))/(sizeof (struct radio433_item)); 
@@ -84,7 +85,7 @@ const char radio433_PIN_TX = 27;
 const char radio433_PIN_RX = 17;
 const char radio_433_send_repeat = 100;
 bool radio433_high = true;
-bool running = true;
+const bool r433_enabled = true;
 
 // Broadcast ID
 const unsigned char broadcast_id = 255;
@@ -105,7 +106,7 @@ union Frame {
 const unsigned char ack_bit_position = 7; // Location of ack bit
 const unsigned int receive_loop_cycle_wait = 20000; // delay in us during one receive loop cycle
 const unsigned int send_loop_cycle_wait = 10; // delay in ms during one send loop
-const unsigned int send_loop_duration = 32; //duration of send attempt in seconds, recommed to be less than 32
+const unsigned int send_loop_duration = 9; //duration of send attempt in seconds, recommed to be less than 32
 const unsigned int send_loop_sending_duration = 30; // duration of send itself measured value
 const unsigned int send_loop_cycles = send_loop_duration * 1000 / (send_loop_cycle_wait + send_loop_sending_duration); // number of cycles needed for one send
 const unsigned int send_loop_end_sleep_nrf = 3; // delay in s after send before next send is processed
@@ -177,6 +178,9 @@ id_t my_pid;
 const int which_prio = PRIO_PROCESS;
 const int radio_prio = -15;
 const int normal_prio = 15;
+
+// General running variable, set to false by signal reception
+bool running = true;
 
 int log_message (int level, int detail, const char* message, ...) {
   struct timeval tv;
@@ -631,7 +635,7 @@ unsigned long send_msg (unsigned long long_message) {
   unsigned char r433_down; // Remote keycode to be used for alternative sending via 433 DOWN // keycodes #1: 0, #2: 96, #3: 120, #4: 24, #5: 80, #6: 48, #7: 108, #8: 12, #9: 72; #10: 40, #OFF: 106
   unsigned char r433_stop; // If 0 instead of stop keycode the keycode of last command is used
   unsigned char r433_last; // Last keycode send out (247 means nothing send out until now, or stop was the last command)
-  bool sending = 1;
+  bool nrf_sending = true;
   bool ack_received = false;
   unsigned long content_ack = (long_message | mask_long_ack) ;
   unsigned long content = long_message;
@@ -643,6 +647,7 @@ unsigned long send_msg (unsigned long long_message) {
     if ((radio433_list[i].target == tmp_msg.d.target) && (radio433_list[i].engine == tmp_msg.d.payload1))
     { // 433 to be used for this target and engine
       r433_ID = radio433_list[i].remoteID;
+      nrf_sending = radio433_list[i].nrf_send;
       if (tmp_msg.d.payload2 == 0) { // STOP
         if (radio433_list[i].keycodeSTOP == 0) {
           r433_command = radio433_list[i].lastKeycode;
@@ -668,7 +673,7 @@ unsigned long send_msg (unsigned long long_message) {
   }
   gettimeofday (&tv,NULL);
   send_start = tv.tv_sec;
-  if ( r433_ID == 0 ) {  // Sending via NRF
+  if ( nrf_sending ) {  // Sending via NRF
     log_message (800,2,"%lu = Sending message %lu expected ack %lu starting at %lu\n",content, content,content_ack,tv.tv_sec);
     i = 0;
     do {
@@ -692,7 +697,7 @@ unsigned long send_msg (unsigned long long_message) {
     }
     sleep (send_loop_end_sleep_nrf);
   } // Sending via NRF
-  else { // Sending via 433
+  if ( (r433_ID != 0) && (r433_enabled) ) { // Sending via 433
     log_message (800,2,"Ready to send 433 via ID %d and key %d to %d engine %d action %d\n",r433_ID, r433_command,tmp_msg.d.target,tmp_msg.d.payload1,tmp_msg.d.payload2 );
   	//roidayan_sendButton(r433_ID, r433_command);	
     setpriority(which_prio, my_pid, radio_prio);
