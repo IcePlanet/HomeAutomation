@@ -12,8 +12,8 @@ using namespace std;
 
 // MOST OFTEN MODIFIED CONSTANTS
 
-const char* version_number = "1.1.0-dev+006";
-const char* version_text = "Added general enable/disable boolean for 433 radio";
+const char* version_number = "1.1.0";
+const char* version_text = "Improved log what was send";
 const bool log_to_screen = false;
 const bool log_to_syslog = true;
 
@@ -75,9 +75,9 @@ struct radio433_item {
 struct radio433_item radio433_list[] = {
   { 51, 1, 6400, 120, 96, 0, 247, false},
   { 51, 2, 19303, 24, 96, 0, 247, false},
-  { 52, 1, 7400, 80, 48, 0, 247, false},
-  { 52, 2, 7400, 108, 12, 0, 247, false},
-  { 52, 3, 7400, 72, 40, 0, 247, false}
+  { 52, 1, 7400, 80, 48, 0, 247, true},
+  { 52, 2, 7400, 108, 12, 0, 247, true},
+  { 52, 3, 7400, 72, 40, 0, 247, true}
 };
 
 unsigned char radio433_array_elements = (sizeof (radio433_list))/(sizeof (struct radio433_item)); 
@@ -106,11 +106,11 @@ union Frame {
 const unsigned char ack_bit_position = 7; // Location of ack bit
 const unsigned int receive_loop_cycle_wait = 20000; // delay in us during one receive loop cycle
 const unsigned int send_loop_cycle_wait = 10; // delay in ms during one send loop
-const unsigned int send_loop_duration = 9; //duration of send attempt in seconds, recommed to be less than 32
+const unsigned int send_loop_duration = 10; //duration of send attempt in seconds, recommed to be less than 32
 const unsigned int send_loop_sending_duration = 30; // duration of send itself measured value
 const unsigned int send_loop_cycles = send_loop_duration * 1000 / (send_loop_cycle_wait + send_loop_sending_duration); // number of cycles needed for one send
 const unsigned int send_loop_end_sleep_nrf = 3; // delay in s after send before next send is processed
-const unsigned int send_loop_end_sleep_433 = 7; // delay in s after send before next send is processed
+const unsigned int send_loop_end_sleep_433 = 5; // delay in s after send before next send is processed
 const unsigned int send_ack_received_delay = 1234; // delay after ack was received
 unsigned int sleep_time = send_loop_cycle_wait * 1000; // technical calculation
 
@@ -688,22 +688,22 @@ unsigned long send_msg (unsigned long long_message) {
         radio.read (&received,sizeof (unsigned long));
         received = received | mask_long_retransfer;
         if (received == content_ack)
-          {log_message (750,2,"%lu - Send attempt %u at %lu from %lu successfully received ack %lu\n",content,i,tv.tv_sec,send_start,received); ack_received = true; usleep (send_ack_received_delay);}
+          {log_message (750,2,"%lu - Send attempt %u at %lu from %lu successfully received ack %lu [%d|%d|%d|%d]\n",content,i,tv.tv_sec,send_start,received,tmp_msg.d.target,tmp_msg.d.payload1,tmp_msg.d.payload2,tmp_msg.d.order); ack_received = true; usleep (send_ack_received_delay);}
         else {decodeMessage (received);} // TODO replace with queue processing
       }  // while end
     } while ((i < send_loop_cycles) && !ack_received);
     if (!ack_received) {
-      log_message (570,2,"%lu - Send attempts %d used at %lu from %lu missing ack\n",content,i,tv.tv_sec,send_start);
+      log_message (570,2,"%lu - Send attempts %d used at %lu from %lu missing ack [%d|%d|%d|%d]\n",content,i,tv.tv_sec,send_start,tmp_msg.d.target,tmp_msg.d.payload1,tmp_msg.d.payload2,tmp_msg.d.order);
     }
     sleep (send_loop_end_sleep_nrf);
   } // Sending via NRF
   if ( (r433_ID != 0) && (r433_enabled) ) { // Sending via 433
-    log_message (800,2,"Ready to send 433 via ID %d and key %d to %d engine %d action %d\n",r433_ID, r433_command,tmp_msg.d.target,tmp_msg.d.payload1,tmp_msg.d.payload2 );
+    log_message (800,2,"Ready to send 433 via ID %d and key %d [%d|%d|%d|%d]\n",r433_ID, r433_command,tmp_msg.d.target,tmp_msg.d.payload1,tmp_msg.d.payload2,tmp_msg.d.order);
   	//roidayan_sendButton(r433_ID, r433_command);	
     setpriority(which_prio, my_pid, radio_prio);
   	radio433_sendButton(r433_ID, r433_command);	
     setpriority(which_prio, my_pid, normal_prio);
-    log_message (750,2,"Done sending 433 via ID %d and key %d to %d engine %d action %d\n",r433_ID, r433_command,tmp_msg.d.target,tmp_msg.d.payload1,tmp_msg.d.payload2 );
+    log_message (750,2,"Done sending 433 via ID %d and key %d [%d|%d|%d|%d]\n",r433_ID, r433_command,tmp_msg.d.target,tmp_msg.d.payload1,tmp_msg.d.payload2,tmp_msg.d.order);
     sleep (send_loop_end_sleep_433);
   } // Sending via 433
 }

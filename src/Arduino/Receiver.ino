@@ -9,7 +9,8 @@ RF24 radio(7, 8);
 
 // MY ID
 //const unsigned char my_id = 12; // Test device
-const unsigned char my_id = 11; // 1st floor Peter BIG
+//const unsigned char my_id = 11; // 1st floor Peter BIG
+const unsigned char my_id = 52; // 0 floor Winter Garden
 
 // Broadcast ID
 const unsigned char broadcast_id = 255;
@@ -63,11 +64,11 @@ union Frame tx_queue [tx_max_queue_size];
 
 // ENGINES definition
 // For simplification the engine pins are HIGH due to the way how relay board is designed (can be done also with low as default but this is little bit more complicated as the pin_power is common for whole board (2, 4, 6 relays))
-const unsigned int number_of_engines = 1;
+const unsigned int number_of_engines = 3;
 const unsigned char engine_orders_bit_position = 4;
 const unsigned int engine_direction_switch_delay = 789; // delay before direction of engine movement can be switched to other direction
 struct engine_control {
-  unsigned int pin_power; // Power for the relay board
+  unsigned int pin_power; // Power for the relay board, kept high together with other pins, changing pin_on or pin_down activates relay
   unsigned int pin_on; // relay switching on the power to engine default (NC) OFF, when triggered (NO) ON
   unsigned int pin_down; // relay switching direction of engine, default (NC) UP, when triggered (NO) DOWN (pin_down can be 0 if there is no engine, but simple switch)
   unsigned int last_status;
@@ -102,8 +103,8 @@ const unsigned char v_measure_gnd = 10;
 const unsigned char delay_before_v_measure = 17; // 7
 const unsigned char light_sensor_power_pin = A3;
 //const unsigned int voltage_read_ms = 65432; // interval to read voltage (0 = disabled, implies also 0 on voltage_send_ms) (ms MAX:65535) 
-const unsigned int voltage_read_ms = 32100; // interval to read voltage (0 = disabled, implies also 0 on voltage_send_ms) (ms MAX:65535)
-const unsigned int voltage_send_ms = 32100; // interval to send voltage (0 = disabled) (ms MAX:65535), voltage will be NOT read, voltage will be send on NEXT read after this timer has expired
+const unsigned int voltage_read_ms = 0; // interval to read voltage (0 = disabled, implies also 0 on voltage_send_ms) (ms MAX:65535)
+const unsigned int voltage_send_ms = 0; // interval to send voltage (0 = disabled) (ms MAX:65535), voltage will be NOT read, voltage will be send on NEXT read after this timer has expired
 const unsigned char voltage_turn_on_external = 50;  // Treshold when to start external power source
 const unsigned char voltage_turn_off_external = 240; // Treshold when to stop external power source
 unsigned char v_read = 0; // voltage counter
@@ -579,12 +580,30 @@ void setup() {
   if (serial_messages) { Serial.begin (9600); printf_begin (); Serial.println ("START");}
   analogReference( INTERNAL );
   if (serial_messages) { Serial.println ("Setting engine pins"); }
-  engines [0].pin_power = 6;
-  engines [0].pin_on = 5;
-  engines [0].pin_down = 3;
-  engines [0].last_status = 0;
-  engines [0].operating = false;
-  engines [0].runtime = 30000; //miliseconds how long operate engine (not accurate)
+  if (number_of_engines > 0) {
+    engines [0].pin_power = 6;
+    engines [0].pin_on = 5;
+    engines [0].pin_down = 3;
+    engines [0].last_status = 0;
+    engines [0].operating = false;
+    engines [0].runtime = 30000; //miliseconds how long operate engine (not accurate)
+  }
+  if (number_of_engines > 1) {
+    engines [1].pin_on = 4;
+    engines [1].pin_power = 6;
+    engines [1].pin_down = 2;
+    engines [1].last_status = 0;
+    engines [1].operating = false;
+    engines [1].runtime = 30000; //miliseconds how long operate engine (not accurate)
+  }
+  if (number_of_engines > 2) {
+    engines [2].pin_power = 6;
+    engines [2].pin_on = 9;
+    engines [2].pin_down = 10;
+    engines [2].last_status = 0;
+    engines [2].operating = false;
+    engines [2].runtime = 30000; //miliseconds how long operate engine (not accurate)
+  }
   for (i = 0; i < number_of_engines; i++) {
     pinMode (engines[i].pin_down, OUTPUT);
     digitalWrite (engines[i].pin_down, HIGH);
