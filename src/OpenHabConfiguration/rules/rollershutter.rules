@@ -134,15 +134,20 @@ end
 
 rule "Re-enable auto mode"
   when
-    Item AUTO_RE_ENABLE changed from OFF to ON
+    Item AUTO_RE_ENABLE changed from OFF to ON or Item AUTO_RE_ENABLE received command ON
   then
+    logInfo ("Rollershutter", "Re-Enable: started")
     gAUTO_RE_ENABLE.getMembers.forEach [p | 
       if ( ( p.state != NULL ) && ((p.state as Number) < 10) ) {
-        logInfo ("Rollershutter", "Item " + p.name + " changed state from " + p.state as Number + " to " +((p.state as Number) + 10))
+        logInfo ("Rollershutter", "Re-Enable: Item " + p.name + " changed state from " + p.state as Number + " to " +((p.state as Number) + 10))
         postUpdate (p.name.toString, ((p.state as Number) + 10).toString)
+      }
+      else {
+        logInfo ("Rollershutter", "Re-Enable: Item " + p.name + " state " + p.state as Number + " kept")
       }
     ]
     triggeringItem.sendCommand(OFF)
+    logInfo ("Rollershutter", "Re-Enable: finished")
 end
 
 rule "Timer_expired"
@@ -484,6 +489,15 @@ rule "South SLD"
         else if ( (S_light_southffxINRAW.state as Number) >= ((S_light_southffxDarkTreshold.state as Number) + (S_light_southffxHysteresis.state as Number)) ) { S_light_southffxSLD.sendCommand (1) }
       }
     }
+end
+
+rule "Day Night remote received"
+// 0:NIGHT 1:DAY
+  when
+    Item S_daynight_remotexINRAW changed
+  then
+    if ( (S_daynight_remotexINRAW.state as Number) == 0 ) { DAY_NIGHT.sendCommand (OFF) }
+    if ( (S_daynight_remotexINRAW.state as Number) == 1 ) { DAY_NIGHT.sendCommand (ON) }
 end
 
 rule "test run"

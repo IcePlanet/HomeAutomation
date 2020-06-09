@@ -12,8 +12,8 @@ using namespace std;
 
 // MOST OFTEN MODIFIED CONSTANTS
 
-const char* version_number = "1.1.0";
-const char* version_text = "Improved log what was send";
+const char* version_number = "1.2.0-dev+0001";
+const char* version_text = "Untested version added remote day night switch";
 const bool log_to_screen = false;
 const bool log_to_syslog = true;
 
@@ -121,6 +121,7 @@ const unsigned char mask_ack = 0b10000000;
 const unsigned char mask_engines = 0b00010000;
 const unsigned char mask_voltage = 0b00100000;
 const unsigned char mask_light = 0b00000010;
+const unsigned char mask_day_night = 0b00001000;
 const unsigned long mask_long_ack = 128;
 const unsigned long mask_long_retransfer = mask_retransfer_send;
 
@@ -159,6 +160,8 @@ const char *OH_LIGHT = "light";
 const char *OH_VOLTAGE = "voltage";
 const char *OH_UNKNOWN = "UNKNOWN";
 const char *OH_SOUTH_FF = "southff";
+const char *OH_DAY_NIGHT = "dayight";
+const char *OH_REMOTE = "remote";
 const char *OH_IP = "192.168.32.133";
 const short unsigned int OH_PORT = 8080;
 const char *OH_PATH = "/rest/items/";
@@ -181,6 +184,9 @@ const int normal_prio = 15;
 
 // General running variable, set to false by signal reception
 bool running = true;
+
+// Forward declaration
+unsigned long send_msg (unsigned long long_message); // Needed by decode message when handling remote control of day/night
 
 int log_message (int level, int detail, const char* message, ...) {
   struct timeval tv;
@@ -356,6 +362,9 @@ void send_to_open_hab (unsigned char source, unsigned char type, unsigned char v
     case 32 :
       snprintf (open_hab_type, 31,"%s", OH_VOLTAGE);
       break ;
+    case 12 :
+      snprintf (open_hab_type, 31,"%s", OH_DAY_NIGHT);
+      break ;
     default :
       log_message (570,1,"W: Unknown type %u (source %u value %u)\n",type, source, value);
       return;
@@ -367,6 +376,9 @@ void send_to_open_hab (unsigned char source, unsigned char type, unsigned char v
       break ;
     case 11 :
       snprintf (open_hab_id, 31,"%s", OH_SOUTH_FF);
+      break ;
+    case  66:
+      snprintf (open_hab_id, 31,"%s", OH_REMOTE);
       break ;
     default :
       log_message (570,1,"W: Unknown source %u (type %u value %u)\n",source, type, value);
@@ -398,6 +410,7 @@ void send_to_open_hab (unsigned char source, unsigned char type, unsigned char v
 
 void decodeMessage (unsigned long to_decode) {
   union Frame t;
+  union Frame tmp_ack;
   t.frame = to_decode;
   if ((t.d.order & mask_voltage) != 0) { // Voltages message
     log_message (720,1,"Voltage %lu decoded as %u (p1) and %u (p2) from %u \n",to_decode,t.d.payload1, t.d.payload2, t.d.target);
@@ -407,6 +420,14 @@ void decodeMessage (unsigned long to_decode) {
     log_message (720,1,"Light %lu decoded as %u (p1) and %u (p2) from %u \n",to_decode,t.d.payload1, t.d.payload2, t.d.target);
     send_to_open_hab (t.d.target,2,t.d.payload2);
   }  // Light message
+  if ((t.d.order & mask_day_night) != 0) { // Day night/switch/pir message
+    log_message (720,1,"Switch %lu decoded as %u (p1) and %u (p2) from %u \n",to_decode,t.d.payload1, t.d.payload2, t.d.target);
+    send_to_open_hab (t.d.target,12,t.d.payload2);
+    // in this exceptional case we send ack
+    tmp_ack.frame = to_decode;
+    tmp_ack.d.order = tmp_ack.d.order | mask_ack;
+    send_msg (tmp_ack.frame);
+  }  // Day night/switch/pir message
   else {log_message (500,1,"Decoder %lu dropped as unknown %u | %u | %u | %u\n",to_decode, t.d.target, t.d.payload1, t.d.payload2, t.d.order);}
   return;
 } // decode message
