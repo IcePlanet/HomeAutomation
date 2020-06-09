@@ -134,8 +134,9 @@ end
 
 rule "Re-enable auto mode"
   when
-    Item AUTO_RE_ENABLE changed from OFF to ON or Item AUTO_RE_ENABLE received command ON
-  then
+    //Item AUTO_RE_ENABLE changed from OFF to ON or Item AUTO_RE_ENABLE received command ON // Causes double triggering
+    Item AUTO_RE_ENABLE changed to ON
+ then
     logInfo ("Rollershutter", "Re-Enable: started")
     gAUTO_RE_ENABLE.getMembers.forEach [p | 
       if ( ( p.state != NULL ) && ((p.state as Number) < 10) ) {
