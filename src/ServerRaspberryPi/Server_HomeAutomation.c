@@ -12,8 +12,8 @@ using namespace std;
 
 // MOST OFTEN MODIFIED CONSTANTS
 
-const char* version_number = "1.2.0-dev+0001";
-const char* version_text = "Untested version added remote day night switch";
+const char* version_number = "1.2.0-dev+0002";
+const char* version_text = "Untested version added remote day night switch and turning 433 radio on/off by pin";
 const bool log_to_screen = false;
 const bool log_to_syslog = true;
 
@@ -81,8 +81,10 @@ struct radio433_item radio433_list[] = {
 };
 
 unsigned char radio433_array_elements = (sizeof (radio433_list))/(sizeof (struct radio433_item)); 
+const char radio433_PIN_POWER = 0; // If this is 0 it is assumed that 433 module is always on
 const char radio433_PIN_TX = 27;
 const char radio433_PIN_RX = 17;
+const unsigned int radio433_power_delay = 300000; // delay in us after powering up/down 433 radio
 const char radio_433_send_repeat = 100;
 bool radio433_high = true;
 const bool r433_enabled = true;
@@ -109,8 +111,8 @@ const unsigned int send_loop_cycle_wait = 10; // delay in ms during one send loo
 const unsigned int send_loop_duration = 10; //duration of send attempt in seconds, recommed to be less than 32
 const unsigned int send_loop_sending_duration = 30; // duration of send itself measured value
 const unsigned int send_loop_cycles = send_loop_duration * 1000 / (send_loop_cycle_wait + send_loop_sending_duration); // number of cycles needed for one send
-const unsigned int send_loop_end_sleep_nrf = 3; // delay in s after send before next send is processed
-const unsigned int send_loop_end_sleep_433 = 5; // delay in s after send before next send is processed
+const unsigned int send_loop_end_sleep_nrf = 1; // delay in s after send before next send is processed
+const unsigned int send_loop_end_sleep_433 = 1; // delay in s after send before next send is processed
 const unsigned int send_ack_received_delay = 1234; // delay after ack was received
 unsigned int sleep_time = send_loop_cycle_wait * 1000; // technical calculation
 
@@ -721,9 +723,21 @@ unsigned long send_msg (unsigned long long_message) {
   if ( (r433_ID != 0) && (r433_enabled) ) { // Sending via 433
     log_message (800,2,"Ready to send 433 via ID %d and key %d [%d|%d|%d|%d]\n",r433_ID, r433_command,tmp_msg.d.target,tmp_msg.d.payload1,tmp_msg.d.payload2,tmp_msg.d.order);
   	//roidayan_sendButton(r433_ID, r433_command);	
+    //If needed turn on power for 433 sender
+    if ( radio433_PIN_POWER != 0 )
+    { //  Turn on 433 power start
+        pinMode(radio433_PIN_POWER, OUTPUT);
+        digitalWrite (radio433_PIN_POWER,HIGH);
+        usleep (radio433_power_delay);
+    } //  Turn on 433 power end
     setpriority(which_prio, my_pid, radio_prio);
   	radio433_sendButton(r433_ID, r433_command);	
     setpriority(which_prio, my_pid, normal_prio);
+    if ( radio433_PIN_POWER != 0 )
+    { //  Turn off 433 power start
+        digitalWrite (radio433_PIN_POWER,LOW);
+        usleep (radio433_power_delay);
+    } //  Turn off 433 power end
     log_message (750,2,"Done sending 433 via ID %d and key %d [%d|%d|%d|%d]\n",r433_ID, r433_command,tmp_msg.d.target,tmp_msg.d.payload1,tmp_msg.d.payload2,tmp_msg.d.order);
     sleep (send_loop_end_sleep_433);
   } // Sending via 433
