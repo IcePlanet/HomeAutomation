@@ -12,8 +12,8 @@ using namespace std;
 
 // MOST OFTEN MODIFIED CONSTANTS
 
-const char* version_number = "1.2.0-dev+0002";
-const char* version_text = "Untested version added remote day night switch and turning 433 radio on/off by pin";
+const char* version_number = "1.2.0-dev+0003";
+const char* version_text = "Untested version added remote day night switch and turning 433 radio on/off by pin GPIO 23";
 const bool log_to_screen = false;
 const bool log_to_syslog = true;
 
@@ -81,9 +81,9 @@ struct radio433_item radio433_list[] = {
 };
 
 unsigned char radio433_array_elements = (sizeof (radio433_list))/(sizeof (struct radio433_item)); 
-const char radio433_PIN_POWER = 0; // If this is 0 it is assumed that 433 module is always on
-const char radio433_PIN_TX = 27;
-const char radio433_PIN_RX = 17;
+const char radio433_PIN_POWER = 23; // If this is 0 it is assumed that 433 module is always on (it is GPIO number)
+const char radio433_PIN_TX = 27; //GPIO number
+const char radio433_PIN_RX = 17; //GPIO number
 const unsigned int radio433_power_delay = 300000; // delay in us after powering up/down 433 radio
 const char radio_433_send_repeat = 100;
 bool radio433_high = true;
