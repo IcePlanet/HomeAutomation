@@ -575,6 +575,28 @@ void radio433_sendButton(unsigned int remoteID, unsigned char keycode) {
 // ABOVE Based on LamPi-2.0/livolo from https://github.com/platenspeler/LamPI-2.0/tree/master/transmitters/livolo 
 // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+void radio433_power (bool power_state) {
+  // Power on or off 433 radio, power_state true=power on, false=power off
+  if (power_state)
+  { //power on
+    if ( radio433_PIN_POWER != 0 )
+    { //  Turn on 433 power start
+        pinMode(radio433_PIN_POWER, OUTPUT);
+        digitalWrite (radio433_PIN_POWER,HIGH);
+        usleep (radio433_power_delay);
+    } //  Turn on 433 power end
+  } // power on
+  else
+  { // power off
+    radio433_sendPulse (0);
+    radio433_high = false;
+    if ( radio433_PIN_POWER != 0 )
+    { //  Turn off 433 power start
+        digitalWrite (radio433_PIN_POWER,LOW);
+        usleep (radio433_power_delay);
+    } //  Turn off 433 power end
+  } // power off
+}
 
 // vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 // BELOW Based on roidayan/LivoloPi from https://github.com/roidayan/LivoloPi
@@ -724,20 +746,11 @@ unsigned long send_msg (unsigned long long_message) {
     log_message (800,2,"Ready to send 433 via ID %d and key %d [%d|%d|%d|%d]\n",r433_ID, r433_command,tmp_msg.d.target,tmp_msg.d.payload1,tmp_msg.d.payload2,tmp_msg.d.order);
   	//roidayan_sendButton(r433_ID, r433_command);	
     //If needed turn on power for 433 sender
-    if ( radio433_PIN_POWER != 0 )
-    { //  Turn on 433 power start
-        pinMode(radio433_PIN_POWER, OUTPUT);
-        digitalWrite (radio433_PIN_POWER,HIGH);
-        usleep (radio433_power_delay);
-    } //  Turn on 433 power end
+    radio433_power (true);
     setpriority(which_prio, my_pid, radio_prio);
   	radio433_sendButton(r433_ID, r433_command);	
     setpriority(which_prio, my_pid, normal_prio);
-    if ( radio433_PIN_POWER != 0 )
-    { //  Turn off 433 power start
-        digitalWrite (radio433_PIN_POWER,LOW);
-        usleep (radio433_power_delay);
-    } //  Turn off 433 power end
+    radio433_power (false);
     log_message (750,2,"Done sending 433 via ID %d and key %d [%d|%d|%d|%d]\n",r433_ID, r433_command,tmp_msg.d.target,tmp_msg.d.payload1,tmp_msg.d.payload2,tmp_msg.d.order);
     sleep (send_loop_end_sleep_433);
   } // Sending via 433
