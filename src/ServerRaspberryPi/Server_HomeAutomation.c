@@ -12,7 +12,7 @@ using namespace std;
 
 // MOST OFTEN MODIFIED CONSTANTS
 
-const char* version_number = "1.2.0-dev+0006";
+const char* version_number = "1.2.0-dev+0007";
 const char* version_text = "Untested version added remote day night switch and turning 433 radio on/off by pin GPIO 23, delay moved before off, radio init";
 const bool log_to_screen = false;
 const bool log_to_syslog = true;
