@@ -12,8 +12,8 @@ using namespace std;
 
 // MOST OFTEN MODIFIED CONSTANTS
 
-const char* version_number = "1.2.0-dev+0003";
-const char* version_text = "Untested version added remote day night switch and turning 433 radio on/off by pin GPIO 23";
+const char* version_number = "1.2.0-dev+0006";
+const char* version_text = "Untested version added remote day night switch and turning 433 radio on/off by pin GPIO 23, delay moved before off, radio init";
 const bool log_to_screen = false;
 const bool log_to_syslog = true;
 
@@ -83,7 +83,7 @@ struct radio433_item radio433_list[] = {
 unsigned char radio433_array_elements = (sizeof (radio433_list))/(sizeof (struct radio433_item)); 
 const char radio433_PIN_POWER = 23; // If this is 0 it is assumed that 433 module is always on (it is GPIO number)
 const char radio433_PIN_TX = 27; //GPIO number
-const char radio433_PIN_RX = 17; //GPIO number
+//const char radio433_PIN_RX = 17; //GPIO number
 const unsigned int radio433_power_delay = 300000; // delay in us after powering up/down 433 radio
 const char radio_433_send_repeat = 100;
 bool radio433_high = true;
@@ -474,7 +474,8 @@ int stop_radio () {
 
 const int p_short = 120;									// 110 works quite OK
 const int p_long = 315;									// 300 works quite OK
-const int p_start = 525;									// 520 works quite OK
+//const int p_start = 525;									// 520 works quite OK
+const int p_start = 550;									// 520 works quite OK
 
 void radio433_sendPulse(unsigned char txPulse) {
   // log_message (980,1,"DEBUG 433 transmit start for %d\n", txPulse);
@@ -575,6 +576,19 @@ void radio433_sendButton(unsigned int remoteID, unsigned char keycode) {
 // ABOVE Based on LamPi-2.0/livolo from https://github.com/platenspeler/LamPI-2.0/tree/master/transmitters/livolo 
 // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+void radio433_init () {
+  //Initialize 433 module
+  if ( radio433_PIN_POWER != 0 ) {
+    pinMode(radio433_PIN_POWER, OUTPUT);
+  }
+  pinMode(radio433_PIN_TX, OUTPUT);
+  //pinMode(radio433_PIN_RX, INPUT);
+  if ( radio433_PIN_POWER != 0 ) {
+    digitalWrite (radio433_PIN_POWER,LOW);
+  }
+  digitalWrite (radio433_PIN_TX,LOW);
+}
+
 void radio433_power (bool power_state) {
   // Power on or off 433 radio, power_state true=power on, false=power off
   if (power_state)
@@ -584,16 +598,18 @@ void radio433_power (bool power_state) {
         pinMode(radio433_PIN_POWER, OUTPUT);
         digitalWrite (radio433_PIN_POWER,HIGH);
         usleep (radio433_power_delay);
+        log_message (850,2,"Radio 433 powered ON %d \n",power_state);
     } //  Turn on 433 power end
   } // power on
   else
   { // power off
+    usleep (radio433_power_delay);
     radio433_sendPulse (0);
-    radio433_high = false;
     if ( radio433_PIN_POWER != 0 )
     { //  Turn off 433 power start
         digitalWrite (radio433_PIN_POWER,LOW);
-        usleep (radio433_power_delay);
+        log_message (850,2,"Radio 433 powered OFF %d \n",power_state);
+        //usleep (radio433_power_delay);
     } //  Turn off 433 power end
   } // power off
 }
@@ -839,6 +855,7 @@ int main(int argc, char** argv) {
   empty_frame.frame = 0;
   
   start_radio ();
+  radio433_init ();
   log_message (770,1,"Radio started\n");
 
   while (running)
@@ -858,5 +875,6 @@ int main(int argc, char** argv) {
   } //main while loop
   log_message (710,1,"Stopping radio\n");
   stop_radio ();
+  radio433_power (false);
   log_message (555,1,"Exitting...\n");
 } //main end
