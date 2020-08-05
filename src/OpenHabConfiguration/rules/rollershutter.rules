@@ -144,7 +144,12 @@ rule "Re-enable auto mode"
         postUpdate (p.name.toString, ((p.state as Number) + 10).toString)
       }
       else {
-        logInfo ("Rollershutter", "Re-Enable: Item " + p.name + " state " + p.state as Number + " kept")
+        if ( p.state != NULL ) {
+          logInfo ("Rollershutter", "Re-Enable: Item " + p.name + " state " + p.state as Number + " kept")
+        }
+        else {
+          logInfo ("Rollershutter", "Re-Enable: Item " + p.name + " unchanged as state is NULL")
+        }
       }
     ]
     triggeringItem.sendCommand(OFF)
