@@ -12,8 +12,8 @@ using namespace std;
 
 // MOST OFTEN MODIFIED CONSTANTS
 
-const char* version_number = "1.2.0-dev+0007";
-const char* version_text = "Untested version added remote day night switch and turning 433 radio on/off by pin GPIO 23, delay moved before off, radio init";
+const char* version_number = "1.2.1-rc1+0008";
+const char* version_text = "NRF 2.1 remote not tested, other parts running, fix for wrong detection of uknown frames";
 const bool log_to_screen = false;
 const bool log_to_syslog = true;
 
@@ -413,14 +413,17 @@ void send_to_open_hab (unsigned char source, unsigned char type, unsigned char v
 void decodeMessage (unsigned long to_decode) {
   union Frame t;
   union Frame tmp_ack;
+  bool unknown_frame = true;
   t.frame = to_decode;
   if ((t.d.order & mask_voltage) != 0) { // Voltages message
     log_message (720,1,"Voltage %lu decoded as %u (p1) and %u (p2) from %u \n",to_decode,t.d.payload1, t.d.payload2, t.d.target);
     send_to_open_hab (t.d.target,32,t.d.payload1);
+    unknown_frame = false;
   }  // Voltages message
   if ((t.d.order & mask_light) != 0) { // Light message
     log_message (720,1,"Light %lu decoded as %u (p1) and %u (p2) from %u \n",to_decode,t.d.payload1, t.d.payload2, t.d.target);
     send_to_open_hab (t.d.target,2,t.d.payload2);
+    unknown_frame = false;
   }  // Light message
   if ((t.d.order & mask_day_night) != 0) { // Day night/switch/pir message
     log_message (720,1,"Switch %lu decoded as %u (p1) and %u (p2) from %u \n",to_decode,t.d.payload1, t.d.payload2, t.d.target);
@@ -429,8 +432,11 @@ void decodeMessage (unsigned long to_decode) {
     tmp_ack.frame = to_decode;
     tmp_ack.d.order = tmp_ack.d.order | mask_ack;
     send_msg (tmp_ack.frame);
+    unknown_frame = false;
   }  // Day night/switch/pir message
-  else {log_message (500,1,"Decoder %lu dropped as unknown %u | %u | %u | %u\n",to_decode, t.d.target, t.d.payload1, t.d.payload2, t.d.order);}
+  if (unknown_frame) {
+    log_message (500,1,"Decoder %lu dropped as unknown %u | %u | %u | %u\n",to_decode, t.d.target, t.d.payload1, t.d.payload2, t.d.order);
+  }
   return;
 } // decode message
 
