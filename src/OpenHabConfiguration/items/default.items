@@ -4,6 +4,7 @@ Number AUTO_MODE "Auto mode" <temperature>  (gPersistent)// Does not trigger aut
 Switch HOME_AWAY "Away" <lock> (gS_TRIGGER_ALL, gPersistent) // ON:away; OFF:home
 Group gHOME_AWAYxTRIGGER "Items triggered by home/away change"
 Switch DAY_NIGHT "Day" <sun> (gPersistent)// ON:day; OFF:night
+Number S_daynight_remotexINRAW "Received DAY_NIGHT value from remote" // 0=NIGHT 1=DAY
 Group gDAY_NIGHTxTRIGGER "Items triggered by day/night change" // it is not included in auto trigger (not member of gS_TRIGGER_ALL, as there is different triggering for day to night transition)
 Group gNIGHT_TO_DAYxTRIGGER "Items triggered by night to day change"
 

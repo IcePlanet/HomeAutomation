@@ -497,6 +497,15 @@ rule "South SLD"
     }
 end
 
+rule "Day Night remote received"
+// 0:NIGHT 1:DAY
+  when
+    Item S_daynight_remotexINRAW changed
+  then
+    if ( (S_daynight_remotexINRAW.state as Number) == 0 ) { DAY_NIGHT.sendCommand (OFF) }
+    if ( (S_daynight_remotexINRAW.state as Number) == 1 ) { DAY_NIGHT.sendCommand (ON) }
+end
+
 rule "test run"
   when
     Member of gTEST received command
