@@ -1,5 +1,12 @@
 # Change Log
 
+## [1.2.1] - 2020-08-31
+
+- Added remote 433 day night switching (not yet used in real life)
+- Radio 433 is powered on only in case sending is needed
+- Fix for packet logging as unknown after successfully decoded
+- Fix of NULL comparison and double triggering in rules
+
 ## [1.1.0] - 2020-05-03
 
 - Added possibility to define 433 and nrf in parallel

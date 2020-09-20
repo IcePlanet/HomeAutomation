@@ -12,8 +12,8 @@ using namespace std;
 
 // MOST OFTEN MODIFIED CONSTANTS
 
-const char* version_number = "1.2.1-rc1+0008";
-const char* version_text = "NRF 2.1 remote not tested, other parts running, fix for wrong detection of uknown frames";
+const char* version_number = "1.2.1";
+const char* version_text = "1.2.1 Release from 31.08.2020";
 const bool log_to_screen = false;
 const bool log_to_syslog = true;
 
