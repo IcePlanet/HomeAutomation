@@ -12,8 +12,8 @@ using namespace std;
 
 // MOST OFTEN MODIFIED CONSTANTS
 
-const char* version_number = "1.2.1";
-const char* version_text = "1.2.1 Release from 31.08.2020";
+const char* version_number = "1.2.2";
+const char* version_text = "1.2.2 Sending by 433 is done first to improve reaction time when there is only livolo switch";
 const bool log_to_screen = false;
 const bool log_to_syslog = true;
 
@@ -740,6 +740,18 @@ unsigned long send_msg (unsigned long long_message) {
   }
   gettimeofday (&tv,NULL);
   send_start = tv.tv_sec;
+  if ( (r433_ID != 0) && (r433_enabled) ) { // Sending via 433
+    log_message (800,2,"Ready to send 433 via ID %d and key %d [%d|%d|%d|%d]\n",r433_ID, r433_command,tmp_msg.d.target,tmp_msg.d.payload1,tmp_msg.d.payload2,tmp_msg.d.order);
+  	//roidayan_sendButton(r433_ID, r433_command);	
+    //If needed turn on power for 433 sender
+    radio433_power (true);
+    setpriority(which_prio, my_pid, radio_prio);
+  	radio433_sendButton(r433_ID, r433_command);	
+    setpriority(which_prio, my_pid, normal_prio);
+    radio433_power (false);
+    log_message (750,2,"Done sending 433 via ID %d and key %d [%d|%d|%d|%d]\n",r433_ID, r433_command,tmp_msg.d.target,tmp_msg.d.payload1,tmp_msg.d.payload2,tmp_msg.d.order);
+    sleep (send_loop_end_sleep_433);
+  } // Sending via 433
   if ( nrf_sending ) {  // Sending via NRF
     log_message (800,2,"%lu = Sending message %lu expected ack %lu starting at %lu\n",content, content,content_ack,tv.tv_sec);
     i = 0;
@@ -764,18 +776,6 @@ unsigned long send_msg (unsigned long long_message) {
     }
     sleep (send_loop_end_sleep_nrf);
   } // Sending via NRF
-  if ( (r433_ID != 0) && (r433_enabled) ) { // Sending via 433
-    log_message (800,2,"Ready to send 433 via ID %d and key %d [%d|%d|%d|%d]\n",r433_ID, r433_command,tmp_msg.d.target,tmp_msg.d.payload1,tmp_msg.d.payload2,tmp_msg.d.order);
-  	//roidayan_sendButton(r433_ID, r433_command);	
-    //If needed turn on power for 433 sender
-    radio433_power (true);
-    setpriority(which_prio, my_pid, radio_prio);
-  	radio433_sendButton(r433_ID, r433_command);	
-    setpriority(which_prio, my_pid, normal_prio);
-    radio433_power (false);
-    log_message (750,2,"Done sending 433 via ID %d and key %d [%d|%d|%d|%d]\n",r433_ID, r433_command,tmp_msg.d.target,tmp_msg.d.payload1,tmp_msg.d.payload2,tmp_msg.d.order);
-    sleep (send_loop_end_sleep_433);
-  } // Sending via 433
 }
 
 unsigned long receive_msg (unsigned int receive_loops, unsigned long waiting_for) {

@@ -300,7 +300,14 @@ rule "Day to night re-calculation"
             val local_max_last_run_time = now.minusMinutes(default_lockout_time)
             if (local_max_last_run_time.isBefore (local_last_run_time)) {
               logInfo("DEBUG", "Last run check failed queing "+local_last_run_time+"min item: "+local_split_part0)
-              timer_queue = timer_queue + triggeringItem.name.toString + "-"
+              //timer_queue = timer_queue + triggeringItem.name.toString + "-"
+              if (timer_queue.contains(triggeringItem.name.toString)) {
+                logInfo("DEBUG", "Item "+triggeringItem.name.toString+" alredy PRESENT in queue "+timer_queue)
+              }
+              else {
+                timer_queue = timer_queue + triggeringItem.name.toString + "-"
+                logInfo("DEBUG", "Item "+triggeringItem.name.toString+" ADDED to queue "+timer_queue)
+              }
               if (timer_main === null) { 
                 logInfo("DEBUG", "Starting timer for "+default_lockout_time+"min item: "+local_split_part0)
                 timer_main = createTimer(now.plusMinutes(default_lockout_time), [|
@@ -367,7 +374,7 @@ rule "South side re-calculation"
       triggeringItem.postUpdate(OFF)
       logInfo("DEBUG", "Values: AUTO_MANUAL:"+AUTO_MANUAL.state+" local_auto_manual:"+local_auto_manual.state+" AUTO_MODE:"+AUTO_MODE.state+" local_auto_mode:"+local_auto_mode.state+" HOME_AWAY:"+HOME_AWAY.state+" DAY_NIGHT:"+DAY_NIGHT.state+" local_SLD:"+local_SLD.state+" local_RAIN:"+local_RAIN.state+" local_plants:"+local_plants.state+" local_door_protect:"+local_door_protect.state+" local_rain_protect:"+local_rain_protect.state+" local_cooling_allowed:"+local_cooling_allowed.state+" local_last_run_time:"+local_last_run_time+" local_last_run_direction:"+local_last_run_direction.state)
       if ( ((AUTO_MANUAL.state != NULL) || (local_auto_manual.state != NULL)) && ((AUTO_MODE.state != NULL) || (local_auto_mode.state != NULL)) && (HOME_AWAY.state != NULL) && (DAY_NIGHT.state != NULL) && (local_SLD.state != NULL) && (local_RAIN.state != NULL) && (local_plants.state != NULL) && (local_door_protect.state != NULL) && (local_rain_protect.state != NULL) && (local_cooling_allowed.state != NULL) && (local_arduino_id.state != NULL) && (local_engine_id.state != NULL) ) {
-        if ( ((local_auto_manual.state == NULL) && (AUTO_MANUAL.state == ON)) || (local_auto_manual.state as Number == 1) || ((local_auto_manual.state as Number == 9) && (AUTO_MANUAL.state == ON))) { // Auto mode enabled
+        if ( ((local_auto_manual.state == NULL) && (AUTO_MANUAL.state == ON)) || ((local_auto_manual.state != NULL) && (local_auto_manual.state as Number == 1)) || ((local_auto_manual.state != NULL) && (local_auto_manual.state as Number == 9) && (AUTO_MANUAL.state == ON))) { // Auto mode enabled
           // Calculate direction
           if (((local_auto_mode.state == NULL) || (local_auto_mode.state as Number == 9)) && (AUTO_MODE.state != NULL)) { local_clean_chn = AUTO_MODE.state}
           else { if ((local_auto_mode.state as Number == 0) || (local_auto_mode.state as Number == 1) || (local_auto_mode.state as Number == 2)) { local_clean_chn = local_auto_mode.state } }
@@ -427,7 +434,13 @@ rule "South side re-calculation"
             val local_max_last_run_time = now.minusMinutes(default_lockout_time)
             if (local_max_last_run_time.isBefore (local_last_run_time)) {
               logInfo("DEBUG", "Last run check failed queing "+local_last_run_time+"min item: "+local_split_part0)
-              timer_queue = timer_queue + triggeringItem.name.toString + "-"
+              if (timer_queue.contains(triggeringItem.name.toString)) {
+                logInfo("DEBUG", "Item "+triggeringItem.name.toString+" alredy PRESENT in queue "+timer_queue)
+              }
+              else {
+                timer_queue = timer_queue + triggeringItem.name.toString + "-"
+                logInfo("DEBUG", "Item "+triggeringItem.name.toString+" ADDED to queue "+timer_queue)
+              }
               if (timer_main === null) { 
                 logInfo("DEBUG", "Starting timer for "+default_lockout_time+"min item: "+local_split_part0)
                 timer_main = createTimer(now.plusMinutes(default_lockout_time), [|
@@ -510,9 +523,18 @@ rule "test run"
   when
     Member of gTEST received command
   then
+    var String local_timer_queue = "Z0_S_WINTER_TERASAxTRIGGER-Z1_S_PETER_BIGxTRIGGER-Z0_S_LIVING_WINDOWxTRIGGER-Z0_S_LIVING_DOORxTRIGGER-Z1_S_PETER_SMALLxTRIGGER-Z0_S_WINTER_DOORxTRIGGER-Z0_S_WINTER_CHODNIKxTRIGGER-Z0_S_WINTER_TERASAxTRIGGER-Z0_S_LIVING_WINDOWxTRIGGER-Z0_S_LIVING_DOORxTRIGGER-Z1_S_PETER_SMALLxTRIGGER-Z0_S_WINTER_DOORxTRIGGER-Z0_S_WINTER_CHODNIKxTRIGGER-Z0_S_WINTER_TERASAxTRIGGER-Z0_S_LIVING_WINDOWxTRIGGER-Z0_S_LIVING_DOORxTRIGGER-Z1_S_PETER_SMALLxTRIGGER-Z0_S_WINTER_DOORxTRIGGER-Z0_S_WINTER_CHODNIKxTRIGGER-Z0_S_WINTER_TERASAxTRIGGER-Z0_S_LIVING_WINDOWxTRIGGER-Z0_S_LIVING_DOORxTRIGGER-Z1_S_PETER_SMALLxTRIGGER-Z0_S_WINTER_DOORxTRIGGER-Z0_S_WINTER_CHODNIKxTRIGGER-Z0_S_WINTER_TERASAxTRIGGER-Z0_S_LIVING_WINDOWxTRIGGER-Z0_S_LIVING_DOORxTRIGGER-Z1_S_PETER_SMALLxTRIGGER-Z0_S_WINTER_DOORxTRIGGER-Z0_S_WINTER_CHODNIKxTRIGGER-Z0_S_WINTER_TERASAxTRIGGER-" 
+    val String new_item_queue = "Z1_S_PETER_BIGxTESTxTRIGGER"
     try {
       logInfo("TEST", "Before return")
-      //return;
+      if (local_timer_queue.contains(new_item_queue)) {
+        logInfo("TEST", "Item >"+new_item_queue+"< alredy present in >"+local_timer_queue+"<")
+      }
+      else {
+        local_timer_queue = local_timer_queue + triggeringItem.name.toString + "-"
+        logInfo("TEST", "Item >"+new_item_queue+"< added to queue >"+local_timer_queue+"<")
+      }
+      //local_timer_queue = timer_queue + triggeringItem.name.toString + "-"
       logInfo("TEST", "After return")
     }catch(Throwable t) {}
     finally {
@@ -520,16 +542,16 @@ rule "test run"
     }
 end
 
-rule "Test item name change"
-  // based on https://community.openhab.org/t/design-pattern-working-with-groups-in-rules/20512
-  when
-    Item Z1_S_TSTxMAIN received command
-  then
-    val String split_part0 = triggeringItem.name.toString.split("x").get(0)
-    val String split_part1 = triggeringItem.name.toString.split("x").get(1)
-    logInfo ("Test", "Split as " + split_part0 + " and " + split_part1)
-    val local_ItemName = split_part0 + "xEngine"
-    val local_EngineNumber = ScriptServiceUtil.getItemRegistry.getItem(local_ItemName)
-    local_EngineNumber.postUpdate (47)
-    logInfo ("Test", "Item value " + local_EngineNumber.state + "vs" + Z1_S_TSTxEngine.state)
-end
+// rule "Test item name change"
+  // // based on https://community.openhab.org/t/design-pattern-working-with-groups-in-rules/20512
+  // when
+    // Item Z1_S_TSTxMAIN received command
+  // then
+    // val String split_part0 = triggeringItem.name.toString.split("x").get(0)
+    // val String split_part1 = triggeringItem.name.toString.split("x").get(1)
+    // logInfo ("Test", "Split as " + split_part0 + " and " + split_part1)
+    // val local_ItemName = split_part0 + "xEngine"
+    // val local_EngineNumber = ScriptServiceUtil.getItemRegistry.getItem(local_ItemName)
+    // local_EngineNumber.postUpdate (47)
+    // logInfo ("Test", "Item value " + local_EngineNumber.state + "vs" + Z1_S_TSTxEngine.state)
+// end
