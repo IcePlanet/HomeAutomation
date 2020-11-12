@@ -12,8 +12,8 @@ using namespace std;
 
 // MOST OFTEN MODIFIED CONSTANTS
 
-const char* version_number = "1.2.2";
-const char* version_text = "1.2.2 Sending by 433 is done first to improve reaction time when there is only livolo switch";
+const char* version_number = "1.2.3";
+const char* version_text = "1.2.3 Changed 433 repeat count from 100 to 75";
 const bool log_to_screen = false;
 const bool log_to_syslog = true;
 
@@ -85,7 +85,7 @@ const char radio433_PIN_POWER = 23; // If this is 0 it is assumed that 433 modul
 const char radio433_PIN_TX = 27; //GPIO number
 //const char radio433_PIN_RX = 17; //GPIO number
 const unsigned int radio433_power_delay = 300000; // delay in us after powering up/down 433 radio
-const char radio_433_send_repeat = 100;
+const char radio_433_send_repeat = 75; // Very sensitive settings, depends on your 433 module, antenna, orientation... recommended is 150, but too many repeats and good signal cause stoping in movement, if your rollershutter starts to move and then stops decrease this value
 bool radio433_high = true;
 const bool r433_enabled = true;
 

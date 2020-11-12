@@ -24,6 +24,8 @@ User controls functions via openHAB UI (paper UI), main logic is within openHAB 
 
 Complete functionality is based on Raspberry PI, arduino pro mini, relay boards, light and temperature sensors, livolo switches, 433 radios, NRF24L01.
 
+Each jalousie is moved based on several pre-set values like if there are plants or not, if the jalousie is covering door, schema setup...
+
 ## Modules
 
 - OpenHab `src/OpenHabConfiguration` - main command center and UI to interact with user using open source project openHAB 2 (runs on raspberry pi)
@@ -32,8 +34,8 @@ Complete functionality is based on Raspberry PI, arduino pro mini, relay boards,
 
 ### Modules interaction
 
-Main command module is **OpenHab** which is running together with PiServer on the same HW (not necessarily). All inputs are processed by rules and outputs are exported to file. Inputs are fed by user using UI or by PiServer using API. Output file is again processed by PiServer.
-Rules are 'heart' of logic, they take into account all the input values (usually sensors), preferences, setup and from this create orders what to do.
+Main command module is **OpenHab** which is running together with PiServer on the same HW (not necessarily). All inputs are processed by rules and outputs are exported to file. Inputs are fed by user using UI or by PiServer using API. Output file is again processed by PiServer. In UI you can manipulate the jalousie manually, or adjust basic settings.
+Rules are 'heart' of logic, they take into account all the input values (usually sensors), preferences, setup and from this create orders for jalousie (driven by Livolo or by arduino).
 
 **PiServer** `home_automation.server` is communicating with arduinos and Livolo switches. With Livolo switches the communication is only one way and there is no possibility to get any status update. With arduinos there is response confirming receiving of command. Used engines are not reporting position so it is not possible to give any information of real jalousie position. Inputs are taken from 2 possible sources
 
@@ -62,6 +64,29 @@ If something does not work first check the HW. What to look for:
 - Sufficient capacitance to cover current spikes (significant when using low power high efficinency power sources)
 
 The 433 module I'm using is creating lot of noise. To fix this the 433 module is powered via transistor switch only when needed. I really recommend this approach.
+
+## Versions you can build
+
+There are 3 versions planned (1 available, 1 prototyped, 1 idea), in general everything you read it for MAINS version, if there are any specifics for SUPERCAP or BATTERY version it will be explicitly mentioned, to not mix the version names with electrical components, the version is always written in uppercase.
+
+### MAINS (Standard)
+
+This is the common version, it is povered from AC voltage, you do not need to take care about battery or power consumption, but continuously it takes cca 0.5 to 1W of energy beacuse of transformation from 220AC to 5V DC. **This is the only version existing in production**
+
+### SUPERCAP version
+
+This version is based on supercapacitor charged via solar panel, currently exists in prototype version, but due to size (SMD) of components it can not be used in production without own PCB board. It consumes in average cca 2uA so supercapacitor is sufficient. In case of solar failure, or longer dark period where charge will be not sufficient there is backup switch to AC, the same backup switch is used also for operating jalousie as from supercap you can not drive relays or jalousie engines.
+
+### BATTERY version
+
+In this version LiIon battery is charged via solar panel allowing mains-free work also in extended periods of darkness (e.g. solar covered by snow for days), but I do not like the idea of LiIon battery as it miht fail catastrophically when not properly used and also there is some kind of lifetime monitoring needed. This version does not exist at all, several modules have been tested, but no complete working solution.
+
+## Note on security
+
+There is absolutelly 0 security on Livolo switches and the same is valid for arduino. Never use this for any kind of security. In my usage model the attacker can move the jalousie freely. This is maybe not nice, but did not create any harm as the jalousie on my house are not intended as security measure.
+Livolo switches use very simple protocol and basic reply attack will work on thse. The same is valid for arduino modules.
+There is no possibility that attacker will get access to server via Livolo or Arduino. Livolo can not send at all and arduinos can send only very limited set of commands. Incomming interface filters this completelly and anything not matching protocol is thrown away.
+Depending where your Raspberry PI is located (or other Linux server), pay attention to securing of this server, as it is fully working Linux server that can be used at base for attacking of your whole network. I recommend to limit access on need to know basis, and if communication outside of your network is needed use VPN or other form of security.
 
 ## Side notes
 

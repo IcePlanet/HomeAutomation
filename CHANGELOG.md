@@ -1,5 +1,10 @@
 # Change Log
 
+## [1.2.3] - 2020-11-12
+
+- Changed 433 send count from 100 to 75 as solution to stoping in movement (configuration value, read comment directly in code)
+- Documentation update
+
 ## [1.2.2] - 2020-09-26
 
 - Fixed comparing to null of local automation in case global automation is OFF
