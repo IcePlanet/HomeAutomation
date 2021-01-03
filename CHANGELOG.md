@@ -1,5 +1,11 @@
 # Change Log
 
+## [1.2.4] - 2021-01-03
+
+- Changed delays in processing of file to get faster response (increases risk of 'missed' commands in case the write handle was still open)
+- After file processed some cycles (faster_loop_count) use reduced delays to speed up processing of consecutive commands, also number of cycles in receive loop is decreased during this time
+- Delay after sending (433 and also NRF) changed to micro seconds (was seconds until now), but configured as miliseconds (multipled by 1000 directly in usleep)
+
 ## [1.2.3] - 2020-11-12
 
 - Changed 433 send count from 100 to 75 as solution to stoping in movement (configuration value, read comment directly in code)

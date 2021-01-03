@@ -12,8 +12,8 @@ using namespace std;
 
 // MOST OFTEN MODIFIED CONSTANTS
 
-const char* version_number = "1.2.3";
-const char* version_text = "1.2.3 Changed 433 repeat count from 100 to 75";
+const char* version_number = "1.2.4";
+const char* version_text = "1.2.4 Changed reaction times, added faster loops after command (assuming there might be consecutive commands that require faster reaction)";
 const bool log_to_screen = false;
 const bool log_to_syslog = true;
 
@@ -85,7 +85,7 @@ const char radio433_PIN_POWER = 23; // If this is 0 it is assumed that 433 modul
 const char radio433_PIN_TX = 27; //GPIO number
 //const char radio433_PIN_RX = 17; //GPIO number
 const unsigned int radio433_power_delay = 300000; // delay in us after powering up/down 433 radio
-const char radio_433_send_repeat = 75; // Very sensitive settings, depends on your 433 module, antenna, orientation... recommended is 150, but too many repeats and good signal cause stoping in movement, if your rollershutter starts to move and then stops decrease this value
+const char radio_433_send_repeat = 80; // Very sensitive settings, depends on your 433 module, antenna, orientation... recommended is 150, but too many repeats and good signal cause stoping in movement, if your rollershutter starts to move and then stops decrease this value
 bool radio433_high = true;
 const bool r433_enabled = true;
 
@@ -111,8 +111,8 @@ const unsigned int send_loop_cycle_wait = 10; // delay in ms during one send loo
 const unsigned int send_loop_duration = 10; //duration of send attempt in seconds, recommed to be less than 32
 const unsigned int send_loop_sending_duration = 30; // duration of send itself measured value
 const unsigned int send_loop_cycles = send_loop_duration * 1000 / (send_loop_cycle_wait + send_loop_sending_duration); // number of cycles needed for one send
-const unsigned int send_loop_end_sleep_nrf = 1; // delay in s after send before next send is processed
-const unsigned int send_loop_end_sleep_433 = 1; // delay in s after send before next send is processed
+const unsigned int send_loop_end_sleep_nrf = 30; // delay in mili seconds after send before next send is processed
+const unsigned int send_loop_end_sleep_433 = 300; // delay in mili seconds after send before next send is processed
 const unsigned int send_ack_received_delay = 1234; // delay after ack was received
 unsigned int sleep_time = send_loop_cycle_wait * 1000; // technical calculation
 
@@ -154,8 +154,10 @@ const int max_queue_items_processed = 3; // Maximal number of items procesed bef
 // FILE FROM OPEN HAB
 const char* file_queue_openhab = "/tmp/RF24_queue.txt";
 const char* file_queue_process = "/tmp/RF24_in_progress.txt";
-const unsigned long file_read_delay = 300000; // delay between checks of queue file in us
-const unsigned long file_open_delay = 500000; // delay between moving and opening of queue file in us
+const unsigned long file_read_delay = 1000000; // delay between checks of queue file in us
+const unsigned long file_open_delay = 30000; // delay between moving and opening of queue file in us, this is workaround for situation that there is still write in progress from openhab
+const unsigned int faster_loop_divider = 100; // file_read_delay is divided by this value to get faster cycles and reaction times in case of consecutove commands, read also faster_loop_count description
+const unsigned int faster_loop_count = 4567; // number of loops to use only 1/faster_loop_divider of file_read_delay, this is to improve reaction time in case of consecutive commands, best way to calculate this value is that if you want the system to react faster next (for example) 47 seconds after last command read calculate this value as 47*1000*1000/(file_read_delay/faster_loop_divider)
 
 // OPEN HAB CONNECTION REST
 const char *OH_LIGHT = "light";
@@ -337,9 +339,9 @@ bool queue_info() {
 void queue_log() {
 	struct queue_node* temp = queue_front;
 	int i = 0;
-	log_message (900,1,"Queue elements: ");
+	log_message (790,1,"Queue elements: ");
 	while(temp != NULL) { log_message (900,0,"%lu -> ",(*temp).f.frame);	temp = temp->queue_next; i++; }
-	log_message (900,0,"NULL (%d)\n",i);
+	log_message (790,0,"NULL (%d)\n",i);
 }
 
 void queue_clean() {
@@ -750,7 +752,7 @@ unsigned long send_msg (unsigned long long_message) {
     setpriority(which_prio, my_pid, normal_prio);
     radio433_power (false);
     log_message (750,2,"Done sending 433 via ID %d and key %d [%d|%d|%d|%d]\n",r433_ID, r433_command,tmp_msg.d.target,tmp_msg.d.payload1,tmp_msg.d.payload2,tmp_msg.d.order);
-    sleep (send_loop_end_sleep_433);
+    usleep (send_loop_end_sleep_433*1000);
   } // Sending via 433
   if ( nrf_sending ) {  // Sending via NRF
     log_message (800,2,"%lu = Sending message %lu expected ack %lu starting at %lu\n",content, content,content_ack,tv.tv_sec);
@@ -774,7 +776,7 @@ unsigned long send_msg (unsigned long long_message) {
     if (!ack_received) {
       log_message (570,2,"%lu - Send attempts %d used at %lu from %lu missing ack [%d|%d|%d|%d]\n",content,i,tv.tv_sec,send_start,tmp_msg.d.target,tmp_msg.d.payload1,tmp_msg.d.payload2,tmp_msg.d.order);
     }
-    sleep (send_loop_end_sleep_nrf);
+    usleep (send_loop_end_sleep_nrf*1000);
   } // Sending via NRF
 }
 
@@ -847,7 +849,7 @@ int main(int argc, char** argv) {
   bool nrf_sender = true;
   bool should_sleep = true;
   int i = 0;
-  int loops;
+  int fast_loops = 0;
   int sleep_interval;
   unsigned long test_send;
   
@@ -867,17 +869,31 @@ int main(int argc, char** argv) {
   while (running)
   {
     read_queue_from_file ();
-    queue_log ();
+    //queue_log ();
     i = 0;
     while (queue_info ())
     { // queue there
       i++;
       send_msg (dequeue ());
       if (i >= max_queue_items_processed) {log_message (800,1,"Max queue items processed, checking queue files again\n"); should_sleep = false; break;}
+      fast_loops = faster_loop_count;
     } // queue there
-    if (should_sleep) {usleep (file_read_delay);} // sleeping before next queue check
+    if (should_sleep) { // sleeping before next queue check
+      if (fast_loops > 0 ) {
+        usleep (file_read_delay/faster_loop_divider);
+        fast_loops--;
+      }
+      else {
+        usleep (file_read_delay);
+      }
+    } // sleeping before next queue check
     should_sleep = true;
-    receive_msg (300,0);
+    if (fast_loops > 0 ) {
+      receive_msg (3,0);
+    }
+    else {
+      receive_msg (300,0);
+    }
   } //main while loop
   log_message (710,1,"Stopping radio\n");
   stop_radio ();
