@@ -1,5 +1,9 @@
 # Change Log
 
+## [1.2.6] - 2021-03-09
+
+- Changed delays processing on sending, removed fixed delay after send, new delay is calculated based on real difference between previous and actual send command (including media to send 433 or nrf)
+
 ## [1.2.4] - 2021-01-03
 
 - Changed delays in processing of file to get faster response (increases risk of 'missed' commands in case the write handle was still open)

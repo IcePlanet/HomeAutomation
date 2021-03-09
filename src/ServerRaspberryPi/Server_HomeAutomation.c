@@ -12,8 +12,8 @@ using namespace std;
 
 // MOST OFTEN MODIFIED CONSTANTS
 
-const char* version_number = "1.2.4";
-const char* version_text = "1.2.4 Changed reaction times, added faster loops after command (assuming there might be consecutive commands that require faster reaction)";
+const char* version_number = "1.2.6";
+const char* version_text = "Rework delay module, now delays are really calculated before send depending on previous send";
 const bool log_to_screen = false;
 const bool log_to_syslog = true;
 
@@ -111,10 +111,14 @@ const unsigned int send_loop_cycle_wait = 10; // delay in ms during one send loo
 const unsigned int send_loop_duration = 10; //duration of send attempt in seconds, recommed to be less than 32
 const unsigned int send_loop_sending_duration = 30; // duration of send itself measured value
 const unsigned int send_loop_cycles = send_loop_duration * 1000 / (send_loop_cycle_wait + send_loop_sending_duration); // number of cycles needed for one send
-const unsigned int send_loop_end_sleep_nrf = 30; // delay in mili seconds after send before next send is processed
-const unsigned int send_loop_end_sleep_433 = 300; // delay in mili seconds after send before next send is processed
+const unsigned int send_loop_nrf_433 = 300; // delay in mili seconds between sends when previous send was nrf and next send is 433
+const unsigned int send_loop_433_nfr = 10; // delay in mili seconds between sends when previous send was 433 and next send is nrf
+const unsigned int send_loop_nrf_nfr = 10; // delay in mili seconds between sends when previous send was nrf and next send is nrf
+const unsigned int send_loop_433_433 = 800; // delay in mili seconds between sends when previous send was 433 and next send is 433
 const unsigned int send_ack_received_delay = 1234; // delay after ack was received
 unsigned int sleep_time = send_loop_cycle_wait * 1000; // technical calculation
+struct timeval send_last_send, send_current_send;
+char send_last_type = 0;
 
 // PAYLOAD MASKS
 // const unsigned char mask_retransfer_send = 0b01000000;
@@ -155,7 +159,7 @@ const int max_queue_items_processed = 3; // Maximal number of items procesed bef
 const char* file_queue_openhab = "/tmp/RF24_queue.txt";
 const char* file_queue_process = "/tmp/RF24_in_progress.txt";
 const unsigned long file_read_delay = 1000000; // delay between checks of queue file in us
-const unsigned long file_open_delay = 30000; // delay between moving and opening of queue file in us, this is workaround for situation that there is still write in progress from openhab
+const unsigned long file_open_delay = 90000; // delay between moving and opening of queue file in us, this is workaround for situation that there is still write in progress from openhab
 const unsigned int faster_loop_divider = 100; // file_read_delay is divided by this value to get faster cycles and reaction times in case of consecutove commands, read also faster_loop_count description
 const unsigned int faster_loop_count = 4567; // number of loops to use only 1/faster_loop_divider of file_read_delay, this is to improve reaction time in case of consecutive commands, best way to calculate this value is that if you want the system to react faster next (for example) 47 seconds after last command read calculate this value as 47*1000*1000/(file_read_delay/faster_loop_divider)
 
@@ -693,6 +697,58 @@ void roidayan_sendButton(uint16_t remoteId, uint8_t keyId)
 // ABOVE Based on roidayan/LivoloPi from https://github.com/roidayan/LivoloPi
 // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+struct timeval send_delay (char send_actual_type) {
+// send_actual_type: 0: initialize, 1: nrf, 2: 433, 7: Finished (update last send time)
+  double elapsed_from_last_send = 0.0;  
+  int actual_delay = 0;
+  int real_delay = 0;
+  if ((send_actual_type == 0) || (send_actual_type == 7)) {
+    gettimeofday (&send_last_send,NULL);
+    log_message (930,2,"Send delay update of last_send s %d us %d (%d)\n",send_last_send.tv_sec,send_last_send.tv_usec,send_actual_type);
+  }
+  else {
+    gettimeofday (&send_current_send,NULL);
+    if (send_last_type == 0) {
+      send_last_type = send_actual_type;
+      log_message (930,2,"Send delay send_last_type updated to %d\n",send_last_type);
+      return (send_current_send);      
+    }
+    else if ((send_actual_type == 1) || (send_actual_type == 2)) {
+      elapsed_from_last_send = send_current_send.tv_sec - send_last_send.tv_sec;
+      if (elapsed_from_last_send > 3) {
+        send_last_type = send_actual_type;
+        log_message (930,2,"Send delay more than 3 seconds from last send send_last_type %d\n",send_last_type);
+        return (send_current_send);
+      }
+      elapsed_from_last_send = (elapsed_from_last_send*1000.0) + ((send_current_send.tv_usec - send_last_send.tv_usec)/1000.0);
+      if ((send_actual_type == 1) && (send_last_type == 1)) {
+        actual_delay = send_loop_nrf_nfr;
+      }
+      if ((send_actual_type == 1) && (send_last_type == 2)) {
+        actual_delay = send_loop_433_nfr;
+      }
+      if ((send_actual_type == 2) && (send_last_type == 1)) {
+        actual_delay = send_loop_nrf_433;
+      }
+      if ((send_actual_type == 2) && (send_last_type == 2)) {
+        actual_delay = send_loop_433_433;
+      }
+      if (actual_delay > elapsed_from_last_send) {
+        real_delay = actual_delay - (int)elapsed_from_last_send;
+        log_message (790,2,"Send delay sleeping %d ms (re-calculated from %d ms) for send_last_type %d and send_actual_type %d with actual_delay %d <= elapsed_from_last_send %lf (send_last_send:%d/%d send_current_send:%d/%d)\n",real_delay,actual_delay,send_last_type,send_actual_type,actual_delay,elapsed_from_last_send,send_last_send.tv_sec,send_last_send.tv_usec,send_current_send.tv_sec,send_current_send.tv_usec);
+        usleep (real_delay*1000);
+        gettimeofday (&send_current_send,NULL);
+      }
+      else {
+        log_message (930,2,"Send delay NOT sleeping %d ms for send_last_type %d and send_actual_type %d with actual_delay %d > elapsed_from_last_send %lf (send_last_send:%d/%d send_current_send:%d/%d)\n",actual_delay,send_last_type,send_actual_type,actual_delay,elapsed_from_last_send,send_last_send.tv_sec,send_last_send.tv_usec,send_current_send.tv_sec,send_current_send.tv_usec);send_last_type = send_actual_type;
+      }
+      send_last_type = send_actual_type;
+      log_message (930,2,"Send delay returning with send_last_type %d\n",send_last_type);
+      return (send_current_send);
+    }
+  }
+}
+
 unsigned long send_msg (unsigned long long_message) {
   struct timeval tv;
   unsigned long send_start;
@@ -743,6 +799,7 @@ unsigned long send_msg (unsigned long long_message) {
   gettimeofday (&tv,NULL);
   send_start = tv.tv_sec;
   if ( (r433_ID != 0) && (r433_enabled) ) { // Sending via 433
+    tv = send_delay (2);
     log_message (800,2,"Ready to send 433 via ID %d and key %d [%d|%d|%d|%d]\n",r433_ID, r433_command,tmp_msg.d.target,tmp_msg.d.payload1,tmp_msg.d.payload2,tmp_msg.d.order);
   	//roidayan_sendButton(r433_ID, r433_command);	
     //If needed turn on power for 433 sender
@@ -752,9 +809,11 @@ unsigned long send_msg (unsigned long long_message) {
     setpriority(which_prio, my_pid, normal_prio);
     radio433_power (false);
     log_message (750,2,"Done sending 433 via ID %d and key %d [%d|%d|%d|%d]\n",r433_ID, r433_command,tmp_msg.d.target,tmp_msg.d.payload1,tmp_msg.d.payload2,tmp_msg.d.order);
-    usleep (send_loop_end_sleep_433*1000);
+    //usleep (send_loop_end_sleep_433*1000);
+    send_delay (7);
   } // Sending via 433
   if ( nrf_sending ) {  // Sending via NRF
+    tv = send_delay (1);
     log_message (800,2,"%lu = Sending message %lu expected ack %lu starting at %lu\n",content, content,content_ack,tv.tv_sec);
     i = 0;
     do {
@@ -776,7 +835,8 @@ unsigned long send_msg (unsigned long long_message) {
     if (!ack_received) {
       log_message (570,2,"%lu - Send attempts %d used at %lu from %lu missing ack [%d|%d|%d|%d]\n",content,i,tv.tv_sec,send_start,tmp_msg.d.target,tmp_msg.d.payload1,tmp_msg.d.payload2,tmp_msg.d.order);
     }
-    usleep (send_loop_end_sleep_nrf*1000);
+    //usleep (send_loop_end_sleep_nrf*1000);
+    send_delay(7);
   } // Sending via NRF
 }
 
