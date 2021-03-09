@@ -12,8 +12,8 @@ using namespace std;
 
 // MOST OFTEN MODIFIED CONSTANTS
 
-const char* version_number = "1.2.6";
-const char* version_text = "Rework delay module, now delays are really calculated before send depending on previous send";
+const char* version_number = "1.2.7";
+const char* version_text = "Rework delay module, now delays are really calculated before send depending on previous send, bugfix in send start";
 const bool log_to_screen = false;
 const bool log_to_syslog = true;
 
@@ -796,10 +796,9 @@ unsigned long send_msg (unsigned long long_message) {
       break;
     } // 433 to be used for this target and engine
   }
-  gettimeofday (&tv,NULL);
-  send_start = tv.tv_sec;
   if ( (r433_ID != 0) && (r433_enabled) ) { // Sending via 433
     tv = send_delay (2);
+    send_start = tv.tv_sec;
     log_message (800,2,"Ready to send 433 via ID %d and key %d [%d|%d|%d|%d]\n",r433_ID, r433_command,tmp_msg.d.target,tmp_msg.d.payload1,tmp_msg.d.payload2,tmp_msg.d.order);
   	//roidayan_sendButton(r433_ID, r433_command);	
     //If needed turn on power for 433 sender
@@ -814,6 +813,7 @@ unsigned long send_msg (unsigned long long_message) {
   } // Sending via 433
   if ( nrf_sending ) {  // Sending via NRF
     tv = send_delay (1);
+    send_start = tv.tv_sec;
     log_message (800,2,"%lu = Sending message %lu expected ack %lu starting at %lu\n",content, content,content_ack,tv.tv_sec);
     i = 0;
     do {

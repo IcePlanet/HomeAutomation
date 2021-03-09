@@ -1,5 +1,9 @@
 # Change Log
 
+## [1.2.7] - 2021-03-09
+
+- Bugfix in time measure during sending
+
 ## [1.2.6] - 2021-03-09
 
 - Changed delays processing on sending, removed fixed delay after send, new delay is calculated based on real difference between previous and actual send command (including media to send 433 or nrf)
