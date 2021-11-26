@@ -34,6 +34,7 @@ Be aware that server selection has impact on timing of 433 communication, this i
 ![433 radio module](images/RadioModule433.jpg)
 
 Radio module is used to communicate with Livolo switches, you need only TX module as Livolo can not answer. There are many modules available, best is to search for actual offer. If possilbe use module with antenna. In case small wire wound antenna is used and you buy both modules the TX antenna is the shorter one (and TX module is the smaller one). Preferred module is Superheterodyne.
+Radio 433 can be source of noise in 433 band, because of this there is option to use gpio to turn the radio on or off, GPIO is 5V but 433 modules are 3.3 V because of this connect via transistor or mosfet to 3.3 V pin. I have used 2N3904 with 4k7 base resistor, but basically any combination is ok as the transistor works only as switch.
 
 ## Relay board
 

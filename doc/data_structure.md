@@ -45,7 +45,7 @@ Empty data are not send so there can not be misinterpretation of all stop vs emp
 
 For engines only transfer from server to client is possible
 
-Payload 1 is engine number: Engines are numbered from 1 to number of engines (configured on client), if engine number 0 is used the payload 2 must be also 0 and means ALL STOP (internally on client engines are numbered from 0 and transition to this numbering is done in processing orders)
+Payload 1 is engine number: Engines are numbered from 1 to number of engines (configured on client), if engine number 0 is used the payload 2 must be also 0 and means ALL STOP (internally on arduino engines are numbered from 0 and transition to this numbering is done on arduino when processing orders `process_orders` function when calling `engine_change`)
 Payload 2 is required action:
 
 * **0**: STOP (for switch=OFF and also for jalousie motor=STOP)
