@@ -23,6 +23,7 @@ sitemap novaky label="Doma"
                 Switch item=AUTO_RE_ENABLE mappings=[ON="Re-Enable"]
         }
         Frame label="TEST" {
+                Switch item=TEST_WRITE_ACTUAL_INFO mappings=[ON="TEST"]
                 Switch item=AUTO_RE_ENABLE
                 Switch  item=vent_niveau_3 mappings=[ON="TEST"]
                 Setpoint item=S_light_southffxINRAW minValue=0 maxValue=255 step=5

@@ -5,42 +5,18 @@
 #include <RF24_config.h>
 #include "LowPower.h"
 
-RF24 radio(7, 8);
+// Following header file is separate for each arduino
+#include "Receiver13.h"
+//#include "ReceiverTEST.h"
 
-// MY ID
-//const unsigned char my_id = 12; // Test device
-//const unsigned char my_id = 11; // 1st floor Peter BIG
-const unsigned char my_id = 52; // 0 floor Winter Garden
-
-// Broadcast ID
-const unsigned char broadcast_id = 255;
-const unsigned char all_id = 0;
-
-// SERVER ID
-const unsigned char server_id = 1;
-
-// Messages mode (if to write messages to serial)
-const bool serial_messages = false;
-
-// RADIO definition
-const unsigned int radio_power_pin = 9;
-const unsigned int radio_init_delay = 10; // Delay after power is applied to radio, should be 105.3 ms (MIN: 101.6 ms; MAX: 110.3 ms) if this is proven as true it makes no sense to power off radio between sleep cycles (ms) NOT NEEDED ANY MORE, REWORKED
-const unsigned char radio_sleep_wakeup_delay = 2; // Delay when radio is waken up from sleep state should be 1.5 ms according to datasheet (ms)
-const unsigned char radio_wait_after_power = 100; // In miliseconds how long we need to wait after power is applied to radio
-const unsigned char radio_wait_after_sleep = 10; // in miliseconds how long we need to wait after radio is waken up from deep sleep
-unsigned char radio_wait_time = radio_wait_after_power;
+// Following code is the same for each arduino, in case any const is added to code it must be defined below this line or in header file for EACH arduino
+// RADIO VARIABLES
 bool radio_status = false; // if radio is active
 bool radio_sleeping = false; // True if radio is in deep sleep
 bool radio_voltage = false; // if radio has voltage (is powered up)
 bool radio_trx_ready = false; // if radio is ready for transmission
 bool rf_trx_done = false; // If trx was executed in this cycle
-const bool radio_shutdown_power = true; // true to shutdown radio power on power down, false to enter sleep mode on power down
-byte addresses[][6] = {"1Node", "2Node"};
-const unsigned long receive_duration = 20; //duration of receive in miliseconds (ms)
-const unsigned long receive_loop_delay = 1; //delay of one receive loop in miliseconds (ms)
-const bool retransfer_bit_set = false; // retransfer bit settings
-const unsigned char retransfer_bit_position = 6; // Location of re-transfer bit
-const unsigned char ack_bit_position = 7; // Location of ack bit
+unsigned char radio_wait_time = radio_wait_after_power;
 unsigned long radio_start_time = 0; // Time when radio was started up
 union Frame {
     unsigned long frame;
@@ -51,39 +27,26 @@ union Frame {
         unsigned char target;
     } d;
 };
-const unsigned char rx_max_queue_size = 10;
 unsigned char rx_queue_start = 0;
 unsigned char rx_queue_count = 0;
 union Frame rx_tmp, rx_last;
 union Frame rx_queue [rx_max_queue_size];
-const unsigned char tx_max_queue_size = 10;
 unsigned char tx_queue_start = 0;
 unsigned char tx_queue_count = 0;
 union Frame tx_tmp, tx_last;
 union Frame tx_queue [tx_max_queue_size];
 
 // ENGINES definition
-// For simplification the engine pins are HIGH due to the way how relay board is designed (can be done also with low as default but this is little bit more complicated as the pin_power is common for whole board (2, 4, 6 relays))
-const unsigned int number_of_engines = 3;
-const unsigned char engine_orders_bit_position = 4;
-const unsigned int engine_direction_switch_delay = 789; // delay before direction of engine movement can be switched to other direction
-struct engine_control {
-  unsigned int pin_power; // Power for the relay board, kept high together with other pins, changing pin_on or pin_down activates relay
-  unsigned int pin_on; // relay switching on the power to engine default (NC) OFF, when triggered (NO) ON
-  unsigned int pin_down; // relay switching direction of engine, default (NC) UP, when triggered (NO) DOWN (pin_down can be 0 if there is no engine, but simple switch)
-  unsigned int last_status;
-  unsigned long start;
-  bool operating;
-  unsigned long runtime;
-};
-struct engine_control engines [number_of_engines];
+unsigned long engines_last_stop_command_received = 0; //timestamp when last stop command was received
 
-// Orders defaults
+// ORDERS DEFAULTS
 bool new_orders = false; // if there are new not yet processeed orders
 unsigned char sleep_lock = 0; // bit field to check if anything is in proogress
 const unsigned char sleep_lock_orders_to_be_processed = 0; // bit position for active orders
 const unsigned char sleep_lock_orders_engine_running = 1; // bit position for running engine
-const unsigned char orders_mask = B00010000; // Mask for orders this system is able to accept, if none of them is set to 1 it is considered as all-stop order
+const unsigned char sleep_lock_wait_after_engine_stop = 2; // bit position where stop delay is indicated in sleep validation
+const unsigned char sleep_lock_mains_on = 3; // bit position where minimal on time of mains is controlled
+const unsigned char sleep_lock_battery_mains_on = 4; // bit position where minimal mains on for battery charging is indicated
 
 // VOLTAGE measure + LIGHT
 unsigned char voltage_input = 0;  // Input voltage for the arduino board
@@ -94,30 +57,23 @@ unsigned char voltage_light = 0; // Voltage measure with light sensor
 unsigned long voltage_tmp_light = 0; // Voltage measure with light sensor
 unsigned long voltage_read_last = 0; // Time when voltage was last read
 unsigned long voltage_send_last = 0; // Time when voltahe was last time sent
-const unsigned char voltage_orders_bit_position = 5; // Position of voltage bit
-const unsigned char light_orders_bit_position = 1; // Position of light bit
-const unsigned long v_in_resistor = 470; // Resistor on voltage divider for main current (100ohm) be carefull: (1024 * 55 * (v_in_resistor + v_gnd_resistor)) <  4294967295 otherwise calculation will be broken !!!
-const unsigned long v_gnd_resistor = 82; // Resistor on voltage divider for ground (100ohm) be carefull: (1024 * 55 * (v_in_resistor + v_gnd_resistor)) <  4294967295 otherwise calculation will be broken !!!
-const unsigned char v_measure_pin = 1;
-const unsigned char v_measure_gnd = 10;
-const unsigned char delay_before_v_measure = 17; // 7
-const unsigned char light_sensor_power_pin = A3;
-//const unsigned int voltage_read_ms = 65432; // interval to read voltage (0 = disabled, implies also 0 on voltage_send_ms) (ms MAX:65535) 
-const unsigned int voltage_read_ms = 0; // interval to read voltage (0 = disabled, implies also 0 on voltage_send_ms) (ms MAX:65535)
-const unsigned int voltage_send_ms = 0; // interval to send voltage (0 = disabled) (ms MAX:65535), voltage will be NOT read, voltage will be send on NEXT read after this timer has expired
-const unsigned char voltage_turn_on_external = 50;  // Treshold when to start external power source
-const unsigned char voltage_turn_off_external = 240; // Treshold when to stop external power source
-unsigned char v_read = 0; // voltage counter
-unsigned char v_send = 0; // voltage counter
-unsigned char voltage_ignore_range = 3; // what must be the minimal difference from last measure to send to server (total range is 2x voltage_ignore_range)
-unsigned char voltage_ignore_min = 0; //setup in a way that condition will be always met on 1st run
-unsigned char voltage_ignore_max = 0; 
 
-// Sleeping cycles in main loop
-const unsigned int sleep_after_deep_sleep = 1; // in ms normally cca 50 (ms)
-const unsigned int sleep_during_sleep_lock = 500 + my_id;
-const unsigned int sleep_engine_change = 11; // in ms, sleep after engine manipulation - if check is executed too fast (in the same ms as engine set) the result might be 0 leading to immediate engine switch off
-const unsigned int sleep_before_lock_validate = 11; // in ms, sleep before validation of sleep lock validation - if check is executed too fast (in the same ms as engine set) the result might be 0 leading to immediate engine switch off
+// MAINS SWITCHER variables
+unsigned long mains_last_on_time = 0; // Time when mains was last turned on
+unsigned char mains_on_requests = 0; // bit array to process demands
+bool mains_turned_on = false;
+const unsigned char mains_lock_bit_engines = sleep_lock_orders_engine_running; // bit to be used for engines
+const unsigned char mains_lock_bit_self = sleep_lock_mains_on; // bit used only for startup sequence
+const unsigned char mains_lock_bit_battery = sleep_lock_battery_mains_on; // bit used for battery charging
+
+// BATTERY maintenance
+unsigned long battery_last_measured = 0; // last time when battery was measured
+unsigned long battery_start_charging = 0; // time when battery charging started
+bool battery_charging_on = false;
+
+// LIGHT measure REFACTORED
+unsigned long light_ldr_last_run = 0; // timestamp when it was last time run
+unsigned char light_ldr_last_measured = 0; // last measured value that was also send (!)
 
 const unsigned int size_of_long = sizeof (unsigned long);
 
@@ -167,15 +123,67 @@ bool rx_queue_remove () {
   return true;
 }
 
+bool mains_on (unsigned char author_bit) {
+  if (mains_switch_connected) {
+    if (author_bit < 8) { bitSet (mains_on_requests, author_bit); }
+    if (!mains_turned_on) {
+      if (mains_switch_on_notify_server) payload_send (10,author_bit+10, 5, mains_on_requests);
+      pinMode(mains_switch_pin, OUTPUT);
+      digitalWrite (mains_switch_pin, HIGH);
+      delay (mains_turn_on_time);
+      mains_last_on_time = millis ();
+      mains_turned_on = true;
+//      bitSet (sleep_lock, sleep_lock_mains_on);  // Sleep lock commented as the mains on should not prevent sleep
+    }
+  }
+  return (mains_turned_on);
+}
+
+bool mains_off (unsigned char author_bit) {
+  if (mains_switch_connected) {
+    if (mains_turned_on) {
+      if (author_bit < 8) { bitClear (mains_on_requests, author_bit); }
+      if (mains_on_requests == 0) {
+        if (millis () - mains_last_on_time > mains_min_switch_on_time ) {
+          if (mains_switch_off_notify_server) payload_send (10,author_bit, 5, mains_on_requests);
+          digitalWrite (mains_switch_pin, LOW);
+          delay (mains_turn_off_time);
+          mains_turned_on = false;
+          //bitClear (sleep_lock, sleep_lock_mains_on); // Sleep lock commented as the mains on should not prevent sleep, exception is first run of program
+        }
+      }
+    }
+    else {
+      if (author_bit < 8) { bitClear (mains_on_requests, author_bit); }
+    }
+  }
+  return (mains_turned_on);
+}
+
+void mains_startup_sequence () {
+  if (mains_switch_connected) {
+    pinMode(mains_switch_pin, OUTPUT);
+    if (mains_switch_latching) {
+      digitalWrite (mains_switch_pin, LOW);
+      delay (mains_turn_off_time);
+    }
+    mains_on (mains_lock_bit_self);
+    mains_off (mains_lock_bit_self);
+    bitSet (sleep_lock, sleep_lock_mains_on);
+  }
+}
+
 void init_radio () {
   if (radio_status) {
     return;
   }
   radio_trx_ready = false;
   if (!radio_voltage) {
-		pinMode(radio_power_pin, OUTPUT);
-		digitalWrite (radio_power_pin, HIGH);
-		delay (radio_init_delay);
+    if (radio_power_from_arduino) {
+      pinMode(radio_power_pin, OUTPUT);
+      digitalWrite (radio_power_pin, HIGH);
+      delay (radio_init_delay);
+    }
 		radio.begin();
     radio_start_time = millis ();
     radio_wait_time = radio_wait_after_power;
@@ -202,9 +210,15 @@ void shutdown_radio () { // hard power down, disconnecting power from radio modu
   radio_trx_ready = false;
   if (radio_voltage) { // if radio is powered up
     if (radio_shutdown_power) { // radio should shutdown power on power down
-      pinMode(radio_power_pin, INPUT);
+      if (radio_power_from_arduino) {
+        pinMode(radio_power_pin, INPUT);
+        radio_voltage = false;
+      }
+      else { // if radio is not powered from arduino and is ordered to cut power, only enter to standby is performed
+        radio.powerDown();
+        radio_sleeping = true;
+      }
       radio_status = false;
-      radio_voltage = false;
 //      if (serial_messages) { Serial.print ("Radio shut down on "); Serial.println (millis ()); }
     } // radio should shutdown power
     else { // Radio is still powered up, only entering deep sleep mode
@@ -214,15 +228,6 @@ void shutdown_radio () { // hard power down, disconnecting power from radio modu
 //      if (serial_messages) { Serial.print ("Radio entered deep sleep on "); Serial.println (millis ()); }
     } // Radio is still powered up, only entering deep sleep mode
   } // radio is powered up
-}
-
-void power_down_radio () {   // Soft power down, enter standby mode (should be 900 nA according to datasheet, in reality seems to be 1.6 to 2.02 mA) according to datasheet startup time from this status is 1.5ms
-// Do not use any more this function to be removed !!!
-	if (radio_status) {
-    radio.powerDown ();
-		radio_status = false;
-		if (serial_messages) { Serial.print ("Radio entered standby on: "); Serial.println (millis ()); }
-  }
 }
 
 void radio_ready () { // Will wait required time to make sure that radio is ready, depends on type of power_down
@@ -354,6 +359,7 @@ void engine_change (unsigned int e, unsigned int o, bool f) {
     //DEBUG:payload_tx_only (10, ((engines[e].operating*100)+(engines[e].last_status*10)+o), 10, 120+e);
     engines[e].operating = true;
     bitSet (sleep_lock,sleep_lock_orders_engine_running);
+    mains_on (mains_lock_bit_engines);
     //DEBUG:payload_tx_only (10, ((engines[e].operating*100)+(engines[e].last_status*10)+o), 10, 130+e);
     if (engines[e].pin_down != 0) { digitalWrite (engines[e].pin_down, LOW); }
     //DEBUG:payload_tx_only (10, ((engines[e].operating*100)+(engines[e].last_status*10)+o), 10, 140+e);
@@ -376,6 +382,7 @@ void engine_change (unsigned int e, unsigned int o, bool f) {
     //DEBUG:payload_tx_only (10, ((engines[e].operating*100)+(engines[e].last_status*10)+o), 10, 220+e);
     engines[e].operating = true;
     bitSet (sleep_lock,sleep_lock_orders_engine_running);
+    mains_on (mains_lock_bit_engines);
     //DEBUG:payload_tx_only (10, ((engines[e].operating*100)+(engines[e].last_status*10)+o), 10, 230+e);
     if (engines[e].pin_down != 0) { digitalWrite (engines[e].pin_down, HIGH); }
     //DEBUG:payload_tx_only (10, ((engines[e].operating*100)+(engines[e].last_status*10)+o), 10, 240+e);
@@ -393,6 +400,7 @@ void engine_change (unsigned int e, unsigned int o, bool f) {
     if (engines[e].operating) { return; } // Do nothing if switch is already on
     engines[e].operating = true;
     bitSet (sleep_lock,sleep_lock_orders_engine_running);
+    mains_on (mains_lock_bit_engines);
     digitalWrite (engines[e].pin_on, LOW);
     digitalWrite (engines[e].pin_power, HIGH);
     return;
@@ -403,6 +411,8 @@ void engine_change (unsigned int e, unsigned int o, bool f) {
     if (f) { engines[e].last_status = o; }
     engines[e].operating = false;
     digitalWrite (engines[e].pin_on, HIGH);
+    engines_last_stop_command_received = millis ();
+    bitSet (sleep_lock,sleep_lock_wait_after_engine_stop);
     if (engines[e].pin_down != 0) { digitalWrite (engines[e].pin_down, HIGH); }
     digitalWrite (engines[e].pin_power, HIGH);
     return;
@@ -412,7 +422,6 @@ void engine_change (unsigned int e, unsigned int o, bool f) {
 void engine_stop_all () {
   int i;
   for (i = 0; i < number_of_engines; i++) { engine_change (i, 0, true); }
-  bitClear (sleep_lock,sleep_lock_orders_engine_running);
 }
 
 void voltage_send (unsigned char p1, unsigned char bit_p2, unsigned char p2) { 
@@ -435,6 +444,7 @@ void voltage_send (unsigned char p1, unsigned char bit_p2, unsigned char p2) {
 }
 
 unsigned long voltage_read (unsigned int internal, unsigned int voltage, unsigned int voltage_admux, unsigned int light, unsigned int light_admux) {
+  // OBSOLETE CODE TO BE DELETED
   // Internal is reference voltage measured against incomming
   // Voltage is external voltage measured against vref
   // Light is reference voltage measured against light sensor pin
@@ -476,7 +486,7 @@ unsigned long voltage_read (unsigned int internal, unsigned int voltage, unsigne
     voltage_tmp_measure =  (voltage_tmp_measure * 250L) / 5000L;
 //    voltage_tmp_measure =  (((measuredVoltage * 55L * (v_in_resistor + v_gnd_resistor)) / (1024L * v_gnd_resistor))) ;// Conversion of external voltage measure where 250 = 1.1V, precalculated the fixed numbers, to be tested instead of above stepwise calculation
     if (voltage_tmp_measure > 255) { voltage_measure = 255; } else {voltage_measure = voltage_tmp_measure; }
-    if (serial_messages) { Serial.print (" M("); Serial.print (channel & 15); Serial.print ("): "); Serial.print (measuredVoltage); Serial.print (" / "); measuredVoltage = (measuredVoltage * 1100L) / 1024L; Serial.print (measuredVoltage); Serial.print (" / "); measuredVoltage = (measuredVoltage * (v_in_resistor + v_gnd_resistor)) / v_gnd_resistor; Serial.print (measuredVoltage) }
+    if (serial_messages) { Serial.print (" M("); Serial.print (channel & 15); Serial.print ("): "); Serial.print (measuredVoltage); Serial.print (" / "); measuredVoltage = (measuredVoltage * 1100L) / 1024L; Serial.print (measuredVoltage); Serial.print (" / "); measuredVoltage = (measuredVoltage * (v_in_resistor + v_gnd_resistor)) / v_gnd_resistor; Serial.print (measuredVoltage); }
   }
   if (light != 0) {
     if (light_sensor_power_pin != 0) { pinMode (light_sensor_power_pin, OUTPUT); digitalWrite (light_sensor_power_pin, HIGH);} 
@@ -519,6 +529,121 @@ unsigned long voltage_read (unsigned int internal, unsigned int voltage, unsigne
 	return measuredVoltage;
 } // readVoltage
 
+unsigned int adac_read (unsigned char channel) {
+  unsigned int measured_value;
+  ADMUX = channel;
+  delay (delay_before_v_measure); // to settle voltage
+  bitSet (ADCSRA, ADSC); // Start conversion ADSC (6)
+  while (bit_is_set(ADCSRA, ADSC)); // Wail for ADSC to become 0
+  measured_value = ADCL; // ADCH is updated only after ADCL is read
+  measured_value |= ADCH << 8;
+  return measured_value;
+}
+
+unsigned int analog_pin_to_admux (unsigned char analog_pin) {
+  unsigned char channel = analog_pin;
+  switch (analog_pin) {
+    case A0:
+      channel = 0; break;
+    case A1:
+      channel = 1; break;
+    case A2:
+      channel = 2; break;
+    case A3:
+      channel = 3; break;
+    case A4:
+      channel = 4; break;
+    case A5:
+      channel = 5; break;
+    case A6:
+      channel = 6; break;
+    case A7:
+      channel = 7; break;
+    case 0:
+      channel = 14; break;
+  }
+  return (channel);
+}
+
+unsigned int ldr_measure () {
+  unsigned long ldr_current_run = millis ();
+  unsigned long ldr_measured_1024;
+  unsigned char ldr_measured_255;
+  unsigned char channel = 0;
+  if ( (light_ldr_sensor_connected) && (light_ldr_read_send_ms > 0) && (ldr_current_run - light_ldr_last_run > light_ldr_read_send_ms) ) {
+    // light sensor interval known and also already passed
+    if (light_ldr_sensor_arduino_powered) {
+      pinMode (light_ldr_sensor_pin_power, OUTPUT);
+      digitalWrite (light_ldr_sensor_pin_power, HIGH);
+      delay (light_ldr_delay_after_power);
+    }
+    channel = analog_pin_to_admux (light_ldr_sensor_pin_measure) | 64 /* AVCC with external capacitor at AREF pin */ ;
+    ldr_measured_1024 = adac_read (channel);
+    if (light_ldr_sensor_arduino_powered) {
+      pinMode (light_ldr_sensor_pin_power, INPUT);
+    }
+    ldr_measured_1024 = (((ldr_measured_1024 * 255L) / 1024L)) ; // Conversion of light sensor, only represents relative value to input voltage where 255 is equal to input voltage
+    if ( ldr_measured_1024 < 0 ) {
+      ldr_measured_255 = 0;
+    }
+    else if ( ldr_measured_1024 > 255 ) {
+      ldr_measured_255 = 255;
+    }
+    else {
+      ldr_measured_255 = ldr_measured_1024;
+    }
+    if ( ((int)light_ldr_last_measured - (int)ldr_measured_255) < light_ldr_ignore_range ) {
+      // sending value as it has bigger difference
+      payload_send (10,0, light_ldr_orders_bit_position, ldr_measured_255);
+      light_ldr_last_measured = ldr_measured_255;
+    }
+    light_ldr_last_run = ldr_current_run;
+  }
+}
+
+void battery_monitor (bool force) {
+  unsigned int battery_voltage_read;
+  unsigned long minimal_timer = battery_measure_interval;
+  if (battery_connected) {
+    if (battery_charging_on) {
+      if (battery_measure_interval > battery_min_charging_time ) { 
+        minimal_timer = battery_min_charging_time;
+      }
+    }
+    if ( (force) || ( millis () - battery_last_measured > minimal_timer )) {
+      battery_voltage_read = adac_read (analog_pin_to_admux (battery_measure_pin) | 64 /* AVCC with external capacitor at AREF pin */) ;
+      battery_last_measured = millis ();
+      if ( battery_measure_pin == 0 ) {
+        if (battery_voltage_read > battery_start_mains) {
+          battery_start_charging = millis();
+          //payload_send (10,(unsigned char)(((battery_voltage_read * 255L) / 1024L)), 5, 77); //DEBUG TODO DELETE
+          mains_on (mains_lock_bit_battery);
+          battery_charging_on = true;
+        }
+        if (battery_voltage_read < battery_stop_mains) {
+          if (millis () - battery_start_charging > battery_min_charging_time) {
+            mains_off (mains_lock_bit_battery);
+            battery_charging_on = false;
+          }
+        }
+      } // reverse measure
+      else {
+        if (battery_voltage_read < battery_start_mains) {
+          battery_start_charging = millis();
+          mains_on (mains_lock_bit_battery);
+          battery_charging_on = true;
+        }
+        if (battery_voltage_read > battery_stop_mains) {
+          if (millis () - battery_start_charging > battery_min_charging_time) {
+            mains_off (mains_lock_bit_battery);
+            battery_charging_on = false;
+          }
+        }
+      } // positive measure
+    } // measure timer check if ending here
+  }
+}
+
 void process_orders () {
   // Here is the engine number decreased by 1 as in openhab 0 is all stop, in arduino world frame 0 is all stop, engine orders with engine 0 and orders 0 is stop all engines on this target
   if (serial_messages) { Serial.print ("Processing orders "); }
@@ -558,6 +683,7 @@ void process_orders () {
 
 void sleep_lock_validate () {
   unsigned char i;
+  bool mains_turn_off_attempt = true;
   if (bitRead (sleep_lock,sleep_lock_orders_engine_running) == 1) { // Engines blocking sleep
     bitClear (sleep_lock,sleep_lock_orders_engine_running);
     for (i = 0; i < number_of_engines; i++) { // Loop all engines
@@ -567,12 +693,30 @@ void sleep_lock_validate () {
 				  break; // We can break the cycle as we already know that sleep will be mot possible
         } // Engine running and should be running
         else { // Engine running, but should be shut down
-          payload_send (10,i, 10, 47); // TODO this is only debug notification can be removed in future
+          //payload_send (10,i, 10, 47); // TODO this is only debug notification can be removed in future
           engine_change (i,0,false);
         } // Engine running, but should be shut down
       } // Engine running
     } // Loop all engines
   } // Engines blocking sleep
+  if (bitRead (sleep_lock,sleep_lock_wait_after_engine_stop) == 1) { // Delay after stop command when active listening
+    if (millis () - engines_last_stop_command_received >= wait_after_engine_stop) {
+      bitClear (sleep_lock,sleep_lock_wait_after_engine_stop);
+    }
+  }
+  if (bitRead (sleep_lock,sleep_lock_orders_engine_running) == 0) { // All engines are shut down, we try to shut down mains
+    mains_turn_off_attempt = mains_off (mains_lock_bit_engines);
+    if (mains_turn_off_attempt) {
+      bitSet (sleep_lock,sleep_lock_mains_on); // Turn off was not success so we setup blocker and try to turn off later
+    }
+  }
+  if (bitRead (sleep_lock,sleep_lock_mains_on) == 1) { // We have mains on, this is mainly for self lock (as there is nobody else to turn it off) so we try to turn off and if we turn off we clear also the lock
+    mains_turn_off_attempt = mains_off (mains_lock_bit_self);
+    if (!mains_turn_off_attempt) {
+      bitClear (sleep_lock,sleep_lock_mains_on);
+    }
+  } 
+  mains_off (mains_lock_bit_self); // security to make sure mains do not stay hanging
 } // sleep_lock_validate
 
 void setup() {
@@ -580,30 +724,6 @@ void setup() {
   if (serial_messages) { Serial.begin (9600); printf_begin (); Serial.println ("START");}
   analogReference( INTERNAL );
   if (serial_messages) { Serial.println ("Setting engine pins"); }
-  if (number_of_engines > 0) {
-    engines [0].pin_power = 6;
-    engines [0].pin_on = 5;
-    engines [0].pin_down = 3;
-    engines [0].last_status = 0;
-    engines [0].operating = false;
-    engines [0].runtime = 30000; //miliseconds how long operate engine (not accurate)
-  }
-  if (number_of_engines > 1) {
-    engines [1].pin_on = 4;
-    engines [1].pin_power = 6;
-    engines [1].pin_down = 2;
-    engines [1].last_status = 0;
-    engines [1].operating = false;
-    engines [1].runtime = 30000; //miliseconds how long operate engine (not accurate)
-  }
-  if (number_of_engines > 2) {
-    engines [2].pin_power = 6;
-    engines [2].pin_on = 9;
-    engines [2].pin_down = 10;
-    engines [2].last_status = 0;
-    engines [2].operating = false;
-    engines [2].runtime = 30000; //miliseconds how long operate engine (not accurate)
-  }
   for (i = 0; i < number_of_engines; i++) {
     pinMode (engines[i].pin_down, OUTPUT);
     digitalWrite (engines[i].pin_down, HIGH);
@@ -614,6 +734,8 @@ void setup() {
     engines[i].last_status = 0;
   }
   rx_last.frame = 0;
+  mains_startup_sequence ();
+  battery_monitor (true); // we start battery monitor at the beginning with force (ignoring last read time)
   if (serial_messages) { Serial.println ("Setup finished starting main loop"); }
 }
 
@@ -625,8 +747,11 @@ void loop() {
     LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
     //delay (8000); // To be commented in final code
     // Adjust timers as during deep sleep time is not ticking
-    voltage_read_last = voltage_read_last - 8000;
-    voltage_send_last = voltage_send_last - 8000;
+    //voltage_read_last = voltage_read_last - 8000; //DELETE OBSOLETE CODE
+    //voltage_send_last = voltage_send_last - 8000; //DELETE OBSOLETE CODE
+    if (light_ldr_sensor_connected) { light_ldr_last_run = light_ldr_last_run - 8000; }
+    if (battery_connected) { battery_last_measured = battery_last_measured - 8000; }
+    if (mains_switch_connected) { mains_last_on_time = mains_last_on_time - 8000; }
     delay (sleep_after_deep_sleep);
   }
   else
@@ -637,7 +762,9 @@ void loop() {
     sleep_lock_validate ();
   } // active orders can not sleep
   init_radio ();
-  //if (voltage_read_ms > 0) { voltage_read (1,1,193,1,66); }
-  if (voltage_read_ms > 0) { voltage_read (0,0,193,1,66); }
+  //if (voltage_read_ms > 0) { voltage_read (1,1,193,1,66); } //DELETE OBSOLETE CODE
+  //if (voltage_read_ms > 0) { voltage_read (0,0,193,1,66); } //DELETE OBSOLETE CODE
+  if (light_ldr_sensor_connected) { ldr_measure (); }
+  if (battery_connected) { battery_monitor (false); }
   if (!rf_trx_done) { rf_trx (0); }
 }

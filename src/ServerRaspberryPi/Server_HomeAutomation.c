@@ -12,8 +12,8 @@ using namespace std;
 
 // MOST OFTEN MODIFIED CONSTANTS
 
-const char* version_number = "1.2.7";
-const char* version_text = "Rework delay module, now delays are really calculated before send depending on previous send, bugfix in send start";
+const char* version_number = "1.2.8";
+const char* version_text = "Bugfix on lock when multiple items triggered in parallel";
 const bool log_to_screen = false;
 const bool log_to_syslog = true;
 

@@ -1,5 +1,11 @@
 # Change Log
 
+## [1.2.8] - 2022-10-21
+
+- Bugfix on freeze when multiple items triggered in parallel, delays in main threads watch for locks and only when lock is free next update is triggered, this check can not be part of update as they can occupy all threads available in openhab, causing Arduino send to hang and because all other threads wait for lock, that can not be released because the arduino can not start from the thread having lock acquired
+- Arduino configuration put to separate file for each arduino improving overview and handling of multiple arduinos
+- Added items and rules for winter garden
+
 ## [1.2.7] - 2021-03-09
 
 - Bugfix in time measure during sending
