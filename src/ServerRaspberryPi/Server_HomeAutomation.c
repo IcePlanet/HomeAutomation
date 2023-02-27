@@ -12,15 +12,20 @@ using namespace std;
 
 // MOST OFTEN MODIFIED CONSTANTS
 
-const char* version_number = "1.2.8";
-const char* version_text = "Bugfix on lock when multiple items triggered in parallel";
+const char* version_number = "2.0.0-alpha-2";
+const char* version_text = "Port to openhab3 and Raspberry 3B Pins 22+0+details";
 const bool log_to_screen = false;
 const bool log_to_syslog = true;
 
 // Hardware configuration
 // Radio CE Pin, CSN Pin, SPI Speed
 // Physical pin numbers version
- RF24 radio(RPI_V2_GPIO_P1_22, BCM2835_SPI_CS0, BCM2835_SPI_SPEED_8MHZ);
+//#define RPI_V2_GPIO_P1_22 25
+//#define RPI_V2_GPIO_P1_22 22
+#define RPI_V2_GPIO_P1_22 6
+#define BCM2835_SPI_CS0 0
+#define BCM2835_SPI_SPEED_8MHZ 8000000
+RF24 radio(RPI_V2_GPIO_P1_22, BCM2835_SPI_CS0, BCM2835_SPI_SPEED_8MHZ);
 // GPIO pin numbers version
 // RF24 radio(RPI_V2_GPIO_P1_25, BCM2835_SPI_CS0, BCM2835_SPI_SPEED_8MHZ);
 
@@ -64,7 +69,7 @@ const bool log_to_syslog = true;
 struct radio433_item {
   unsigned char target; // Original target in openhab
   unsigned char engine; // Original engine number from openhab
-  unsigned int remoteID; // Remote ID to be used for alternative sending via 433 // real remote IDs: 6400; 19303; 23783; 26339; 26348 tested "virtual" remote IDs: 10550; 8500; 7400
+  uint32_t remoteID; // Remote ID to be used for alternative sending via 433 // real remote IDs: 6400; 19303; 23783; 26339; 26348 tested "virtual" remote IDs: 10550; 8500; 7400
   unsigned char keycodeUP; // Remote keycode to be used for alternative sending via 433 UP // keycodes #1: 0, #2: 96, #3: 120, #4: 24, #5: 80=108, #6: 48=72, #7: 108=48, #8: 12, #9: 72=80; #10: 40, #OFF: 106
   unsigned char keycodeDOWN; // Remote keycode to be used for alternative sending via 433 DOWN // keycodes #1: 0, #2: 96, #3: 120, #4: 24, #5: 80, #6: 48, #7: 108, #8: 12, #9: 72; #10: 40, #OFF: 106
   unsigned char keycodeSTOP; // If 0 instead of stop keycode the keycode of last command is used
@@ -81,11 +86,13 @@ struct radio433_item radio433_list[] = {
 };
 
 unsigned char radio433_array_elements = (sizeof (radio433_list))/(sizeof (struct radio433_item)); 
-const char radio433_PIN_POWER = 23; // If this is 0 it is assumed that 433 module is always on (it is GPIO number)
-const char radio433_PIN_TX = 27; //GPIO number
+//const char radio433_PIN_POWER = 23; // If this is 0 it is assumed that 433 module is always on (it is GPIO number)
+const char radio433_PIN_POWER = 4; // If this is 0 it is assumed that 433 module is always on (it is GPIO number)
+//const char radio433_PIN_TX = 27; //GPIO number
+const char radio433_PIN_TX = 2; //GPIO number
 //const char radio433_PIN_RX = 17; //GPIO number
-const unsigned int radio433_power_delay = 300000; // delay in us after powering up/down 433 radio
-const char radio_433_send_repeat = 80; // Very sensitive settings, depends on your 433 module, antenna, orientation... recommended is 150, but too many repeats and good signal cause stoping in movement, if your rollershutter starts to move and then stops decrease this value
+const uint32_t radio433_power_delay = 300000; // delay in us after powering up/down 433 radio
+const char radio_433_send_repeat = 150; // Very sensitive settings, depends on your 433 module, antenna, orientation... recommended is 150, but too many repeats and good signal cause stoping in movement, if your rollershutter starts to move and then stops decrease this value
 bool radio433_high = true;
 const bool r433_enabled = true;
 
@@ -97,7 +104,7 @@ bool radio_initialized=false; //Identifies if radio.begin was done
 bool radio_up=false; //Identifies if radio is powered up
 const uint8_t pipes[][6] = {"1Node","2Node"};
 union Frame {
-    unsigned long frame;
+    uint32_t frame;
     struct {
         unsigned char order;
         unsigned char payload2;
@@ -106,17 +113,17 @@ union Frame {
     } d;
 };
 const unsigned char ack_bit_position = 7; // Location of ack bit
-const unsigned int receive_loop_cycle_wait = 20000; // delay in us during one receive loop cycle
-const unsigned int send_loop_cycle_wait = 10; // delay in ms during one send loop
-const unsigned int send_loop_duration = 10; //duration of send attempt in seconds, recommed to be less than 32
-const unsigned int send_loop_sending_duration = 30; // duration of send itself measured value
-const unsigned int send_loop_cycles = send_loop_duration * 1000 / (send_loop_cycle_wait + send_loop_sending_duration); // number of cycles needed for one send
-const unsigned int send_loop_nrf_433 = 300; // delay in mili seconds between sends when previous send was nrf and next send is 433
-const unsigned int send_loop_433_nfr = 10; // delay in mili seconds between sends when previous send was 433 and next send is nrf
-const unsigned int send_loop_nrf_nfr = 10; // delay in mili seconds between sends when previous send was nrf and next send is nrf
-const unsigned int send_loop_433_433 = 800; // delay in mili seconds between sends when previous send was 433 and next send is 433
-const unsigned int send_ack_received_delay = 1234; // delay after ack was received
-unsigned int sleep_time = send_loop_cycle_wait * 1000; // technical calculation
+const uint32_t receive_loop_cycle_wait = 20000; // delay in us during one receive loop cycle
+const uint32_t send_loop_cycle_wait = 10; // delay in ms during one send loop
+const uint32_t send_loop_duration = 10; //duration of send attempt in seconds, recommed to be less than 32
+const uint32_t send_loop_sending_duration = 30; // duration of send itself measured value
+const uint32_t send_loop_cycles = send_loop_duration * 1000 / (send_loop_cycle_wait + send_loop_sending_duration); // number of cycles needed for one send
+const uint32_t send_loop_nrf_433 = 300; // delay in mili seconds between sends when previous send was nrf and next send is 433
+const uint32_t send_loop_433_nfr = 10; // delay in mili seconds between sends when previous send was 433 and next send is nrf
+const uint32_t send_loop_nrf_nfr = 10; // delay in mili seconds between sends when previous send was nrf and next send is nrf
+const uint32_t send_loop_433_433 = 800; // delay in mili seconds between sends when previous send was 433 and next send is 433
+const uint32_t send_ack_received_delay = 1234; // delay after ack was received
+uint32_t sleep_time = send_loop_cycle_wait * 1000; // technical calculation
 struct timeval send_last_send, send_current_send;
 char send_last_type = 0;
 
@@ -128,24 +135,24 @@ const unsigned char mask_engines = 0b00010000;
 const unsigned char mask_voltage = 0b00100000;
 const unsigned char mask_light = 0b00000010;
 const unsigned char mask_day_night = 0b00001000;
-const unsigned long mask_long_ack = 128;
-const unsigned long mask_long_retransfer = mask_retransfer_send;
+const uint32_t mask_long_ack = 128;
+const uint32_t mask_long_retransfer = mask_retransfer_send;
 
 // LOG SETTINGS
-const int log_level = 800; //Log level, the lower number the more priority log, so lower level means less messages
+const int32_t log_level = 800; //Log level, the lower number the more priority log, so lower level means less messages
 const char* timeformat = "%Y%m%d%H%M%S";
-const unsigned int log_level_emergency = 100;
-const unsigned int log_level_alert = 200;
-const unsigned int log_level_critical = 300;
-const unsigned int log_level_error = 400;
-const unsigned int log_level_warning = 500;
-const unsigned int log_level_notice = 600;
-const unsigned int log_level_info = 700;
-const unsigned int log_level_debug = 800;
+const uint32_t log_level_emergency = 100;
+const uint32_t log_level_alert = 200;
+const uint32_t log_level_critical = 300;
+const uint32_t log_level_error = 400;
+const uint32_t log_level_warning = 500;
+const uint32_t log_level_notice = 600;
+const uint32_t log_level_info = 700;
+const uint32_t log_level_debug = 800;
 char log_time [21];
 char log_prefix [100];
 char log_content [1000];
-int log_syslog_priority;
+int32_t log_syslog_priority;
 
 // QUEUE
 struct queue_node { union Frame f; struct queue_node* queue_next; };
@@ -153,15 +160,15 @@ struct queue_node* queue_front = NULL;
 struct queue_node* queue_rear = NULL;
 struct QueueFrames { queue_node* start; queue_node* end; bool ok; union Frame t; } send_queue ;
 union Frame empty_frame; // Do not forget to define as first item in the code !
-const int max_queue_items_processed = 3; // Maximal number of items procesed before checking file again
+const int32_t max_queue_items_processed = 3; // Maximal number of items procesed before checking file again
 
 // FILE FROM OPEN HAB
 const char* file_queue_openhab = "/tmp/RF24_queue.txt";
 const char* file_queue_process = "/tmp/RF24_in_progress.txt";
-const unsigned long file_read_delay = 1000000; // delay between checks of queue file in us
-const unsigned long file_open_delay = 90000; // delay between moving and opening of queue file in us, this is workaround for situation that there is still write in progress from openhab
-const unsigned int faster_loop_divider = 100; // file_read_delay is divided by this value to get faster cycles and reaction times in case of consecutove commands, read also faster_loop_count description
-const unsigned int faster_loop_count = 4567; // number of loops to use only 1/faster_loop_divider of file_read_delay, this is to improve reaction time in case of consecutive commands, best way to calculate this value is that if you want the system to react faster next (for example) 47 seconds after last command read calculate this value as 47*1000*1000/(file_read_delay/faster_loop_divider)
+const uint32_t file_read_delay = 1000000; // delay between checks of queue file in us
+const uint32_t file_open_delay = 90000; // delay between moving and opening of queue file in us, this is workaround for situation that there is still write in progress from openhab
+const uint32_t faster_loop_divider = 100; // file_read_delay is divided by this value to get faster cycles and reaction times in case of consecutove commands, read also faster_loop_count description
+const uint32_t faster_loop_count = 4567; // number of loops to use only 1/faster_loop_divider of file_read_delay, this is to improve reaction time in case of consecutive commands, best way to calculate this value is that if you want the system to react faster next (for example) 47 seconds after last command read calculate this value as 47*1000*1000/(file_read_delay/faster_loop_divider)
 
 // OPEN HAB CONNECTION REST
 const char *OH_LIGHT = "light";
@@ -173,10 +180,10 @@ const char *OH_REMOTE = "remote";
 const char *OH_IP = "192.168.32.133";
 const short unsigned int OH_PORT = 8080;
 const char *OH_PATH = "/rest/items/";
-struct sockaddr_in sin = { 0 };
-int sock;
-int garbage;
-int opt=1;
+struct sockaddr_in so_in = { 0 };
+int32_t sock;
+int32_t garbage;
+int32_t opt=1;
 char * oh_tpl = (char *)"POST %s%s HTTP/1.0\r\n"
         "Content-Type: text/plain\r\n"
         "Accept: application/json\r\n"
@@ -186,17 +193,17 @@ char * oh_tpl = (char *)"POST %s%s HTTP/1.0\r\n"
 
 // PRIORITY
 id_t my_pid;
-const int which_prio = PRIO_PROCESS;
-const int radio_prio = -15;
-const int normal_prio = 15;
+const int32_t which_prio = PRIO_PROCESS;
+const int32_t radio_prio = -15;
+const int32_t normal_prio = 15;
 
 // General running variable, set to false by signal reception
 bool running = true;
 
 // Forward declaration
-unsigned long send_msg (unsigned long long_message); // Needed by decode message when handling remote control of day/night
+uint32_t send_msg (uint32_t long_message); // Needed by decode message when handling remote control of day/night
 
-int log_message (int level, int detail, const char* message, ...) {
+int32_t log_message (int32_t level, int32_t detail, const char* message, ...) {
   struct timeval tv;
   time_t t = time(NULL);
   if (log_to_screen || log_to_syslog ) {
@@ -247,7 +254,7 @@ int log_message (int level, int detail, const char* message, ...) {
   }
 }
 
-void signal_callback_handler(int signum) {
+void signal_callback_handler(int32_t signum) {
    log_message (555,1,"Received signal %d\n", signum);
    running = false;
 }
@@ -296,7 +303,7 @@ bool uq_info (struct QueueFrames *x) {
 
 void uq_log (struct QueueFrames *x) {
   struct queue_node* temp = (*x).start;
-	int i = 0;
+	int32_t i = 0;
 	log_message (900,1,"Queue elements: ");
 	while(temp != NULL) { log_message (900,0,"%lu -> ",temp->f.frame);	temp = temp->queue_next; i++; }
 	log_message (900,0,"NULL (%d)\n",i);
@@ -310,7 +317,7 @@ void uq_clean (struct QueueFrames *x) {
 	uq_log (x);
 }
 
-void enqueue(unsigned long x) {
+void enqueue(uint32_t x) {
 	struct queue_node* temp =  (struct queue_node*)malloc(sizeof(struct queue_node));
 	(*temp).f.frame = x; 
 	temp->queue_next = NULL;
@@ -319,9 +326,9 @@ void enqueue(unsigned long x) {
 	queue_rear = temp;
 }
 
-unsigned long dequeue() {
+uint32_t dequeue() {
 	struct queue_node* temp = queue_front;
-	unsigned long return_value;
+	uint32_t return_value;
 	if(queue_front == NULL) { log_message (410,1,"Error in queue processing, out of bounds\n"); return 0; }
 	if(queue_front == queue_rear) { queue_front = queue_rear = NULL;}
 	else { queue_front = queue_front->queue_next;	}
@@ -330,7 +337,7 @@ unsigned long dequeue() {
 	return return_value;
 }
 
-unsigned long queue_item() {
+uint32_t queue_item() {
 	if(queue_front == NULL) { log_message (410,1,"Error in queue processing, out of bounds\n"); return 0; }
 	return (*queue_front).f.frame;
 }
@@ -342,7 +349,7 @@ bool queue_info() {
 
 void queue_log() {
 	struct queue_node* temp = queue_front;
-	int i = 0;
+	int32_t i = 0;
 	log_message (790,1,"Queue elements: ");
 	while(temp != NULL) { log_message (900,0,"%lu -> ",(*temp).f.frame);	temp = temp->queue_next; i++; }
 	log_message (790,0,"NULL (%d)\n",i);
@@ -396,17 +403,17 @@ void send_to_open_hab (unsigned char source, unsigned char type, unsigned char v
   log_message (880,1,"D: Detected sensor is %s from %u, %u\n",sensor_name, type, source);
   // https://stackoverflow.com/questions/7901945/c-open-socket-on-a-specific-ip
   // curl -X POST --header "Content-Type: text/plain" --header "Accept: application/json" -d "47" "http://192.168.2.222:8080/rest/items/S_light_southffxINRAW"
-  sin.sin_family = AF_INET;
-  sin.sin_port = htons (OH_PORT);
-  //inet_aton(OH_IP, &sin.sin_addr);
-  sin.sin_addr.s_addr = inet_addr(OH_IP);
+  so_in.sin_family = AF_INET;
+  so_in.sin_port = htons (OH_PORT);
+  //inet_aton(OH_IP, &so_in.sin_addr);
+  so_in.sin_addr.s_addr = inet_addr(OH_IP);
   //sock = socket(AF_INET, SOCK_STREAM, 0);
   sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
   log_message (880,1,"D: Socket for %s open as %d\n",sensor_name, sock);
   setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(int));
   log_message (880,1,"D: Socket for %s options set %d\n",sensor_name, sock);
-  //bind(sock, (struct sockaddr *) &sin, sizeof(sin));
-  connect(sock, (struct sockaddr *)&sin, sizeof(struct sockaddr_in));
+  //bind(sock, (struct sockaddr *) &so_in, sizeof(so_in));
+  connect(sock, (struct sockaddr *)&so_in, sizeof(struct sockaddr_in));
   log_message (880,1,"D: Socket for %s connect %d\n",sensor_name, sock);
   snprintf (new_value_as_text, 9, "%u", (unsigned) value);
   snprintf (message, 1023, oh_tpl, OH_PATH, sensor_name, (int) strlen(new_value_as_text), new_value_as_text);
@@ -416,7 +423,7 @@ void send_to_open_hab (unsigned char source, unsigned char type, unsigned char v
   close(sock);
 }
 
-void decodeMessage (unsigned long to_decode) {
+void decodeMessage (uint32_t to_decode) {
   union Frame t;
   union Frame tmp_ack;
   bool unknown_frame = true;
@@ -446,7 +453,7 @@ void decodeMessage (unsigned long to_decode) {
   return;
 } // decode message
 
-int start_radio () {
+int32_t start_radio () {
   if (!radio_initialized)
   {
     radio.begin ();
@@ -464,7 +471,7 @@ int start_radio () {
   return 0;
 }
 
-int stop_radio () {
+int32_t stop_radio () {
   if (radio_initialized && radio_up)
   {
     radio.powerDown ();
@@ -484,10 +491,11 @@ int stop_radio () {
 // have not tested other buttons, but as there is dimmer control, some keycodes could be strictly system
 // use: sendButton(remoteID, keycode), see example blink.ino; 
 
-const int p_short = 120;									// 110 works quite OK
-const int p_long = 315;									// 300 works quite OK
-//const int p_start = 525;									// 520 works quite OK
-const int p_start = 550;									// 520 works quite OK
+const int32_t p_short = 110;									// 110 works quite OK
+const int32_t p_long = 303;									// 300 works quite OK
+//const int32_t p_start = 525;									// 520 works quite OK
+const int32_t p_start = 550;									// 520 works quite OK
+const int32_t p_five = 290;									// 520 works quite OK
 
 void radio433_sendPulse(unsigned char txPulse) {
   // log_message (980,1,"DEBUG 433 transmit start for %d\n", txPulse);
@@ -520,7 +528,7 @@ void radio433_sendPulse(unsigned char txPulse) {
 
 	case 5:											// "Low One"
 		digitalWrite(radio433_PIN_TX, HIGH);
-		delayMicroseconds(p_long); 					// 290
+		delayMicroseconds(p_five); 					// 290
 	break; 
 	}
   // log_message (980,1,"DEBUG 433 transmit end for %d\n", txPulse);
@@ -548,7 +556,7 @@ void radio433_selectPulse(unsigned char inBit) {
     }
 }
 
-void radio433_sendButton(unsigned int remoteID, unsigned char keycode) {
+void radio433_sendButton(uint32_t remoteID, unsigned char keycode) {
   signed char i;
   unsigned char pulse;
   pinMode(radio433_PIN_TX, OUTPUT);
@@ -558,7 +566,7 @@ void radio433_sendButton(unsigned int remoteID, unsigned char keycode) {
     radio433_high = true;
 		radio433_sendPulse(1); // first pulse is always high
     for (i = 15; i>=0; i--) { 						// transmit remoteID
-      unsigned int txPulse = remoteID & ( 1<<i );	// read bits from remote ID
+      uint32_t txPulse = remoteID & ( 1<<i );	// read bits from remote ID
       log_message (980,1,"DEBUG 433 send pulse %d remote loop %d txpulse %d\n", pulse, i, txPulse);
       if (txPulse>0) { 
 		radio433_selectPulse(1); 
@@ -633,7 +641,7 @@ void radio433_power (bool power_state) {
 #define LIVOLO_ONE_DURATION 315
 #define LIVOLO_NUM_REPEATS 150
 bool mIsHigh;
-int mTxPin;
+int32_t mTxPin;
 
 void roidayan_tx(bool value)
 {
@@ -700,8 +708,8 @@ void roidayan_sendButton(uint16_t remoteId, uint8_t keyId)
 struct timeval send_delay (char send_actual_type) {
 // send_actual_type: 0: initialize, 1: nrf, 2: 433, 7: Finished (update last send time)
   double elapsed_from_last_send = 0.0;  
-  int actual_delay = 0;
-  int real_delay = 0;
+  int32_t actual_delay = 0;
+  int32_t real_delay = 0;
   if ((send_actual_type == 0) || (send_actual_type == 7)) {
     gettimeofday (&send_last_send,NULL);
     log_message (930,2,"Send delay update of last_send s %d us %d (%d)\n",send_last_send.tv_sec,send_last_send.tv_usec,send_actual_type);
@@ -749,12 +757,12 @@ struct timeval send_delay (char send_actual_type) {
   }
 }
 
-unsigned long send_msg (unsigned long long_message) {
+uint32_t send_msg (uint32_t long_message) {
   struct timeval tv;
-  unsigned long send_start;
-  unsigned int i = 0;
-  unsigned int radio433_element;
-  unsigned int r433_ID = 0; // Remote ID to be used for alternative sending via 433 // real remote IDs: 6400; 19303; 23783 tested "virtual" remote IDs: 10550; 8500; 7400
+  uint32_t send_start;
+  uint32_t i = 0;
+  uint32_t radio433_element;
+  uint32_t r433_ID = 0; // Remote ID to be used for alternative sending via 433 // real remote IDs: 6400; 19303; 23783 tested "virtual" remote IDs: 10550; 8500; 7400
   unsigned char r433_command; // Remote keycode to be used for actual send via 433// keycodes #1: 0, #2: 96, #3: 120, #4: 24, #5: 80, #6: 48, #7: 108, #8: 12, #9: 72; #10: 40, #OFF: 106
   unsigned char r433_up; // Remote keycode to be used for alternative sending via 433 UP // keycodes #1: 0, #2: 96, #3: 120, #4: 24, #5: 80, #6: 48, #7: 108, #8: 12, #9: 72; #10: 40, #OFF: 106
   unsigned char r433_down; // Remote keycode to be used for alternative sending via 433 DOWN // keycodes #1: 0, #2: 96, #3: 120, #4: 24, #5: 80, #6: 48, #7: 108, #8: 12, #9: 72; #10: 40, #OFF: 106
@@ -762,9 +770,9 @@ unsigned long send_msg (unsigned long long_message) {
   unsigned char r433_last; // Last keycode send out (247 means nothing send out until now, or stop was the last command)
   bool nrf_sending = true;
   bool ack_received = false;
-  unsigned long content_ack = (long_message | mask_long_ack) ;
-  unsigned long content = long_message;
-  unsigned long received = 0;
+  uint32_t content_ack = (long_message | mask_long_ack) ;
+  uint32_t content = long_message;
+  uint32_t received = 0;
   union Frame tmp_msg; 
   // First we need to check if there is 433 sender for this, so we need to decode (little bit of workaround but this was added later
   tmp_msg.frame = long_message;
@@ -825,7 +833,7 @@ unsigned long send_msg (unsigned long long_message) {
       radio.startListening ();
       usleep (sleep_time);
       while (radio.available ()) {
-        radio.read (&received,sizeof (unsigned long));
+        radio.read (&received,sizeof (uint32_t));
         received = received | mask_long_retransfer;
         if (received == content_ack)
           {log_message (750,2,"%lu - Send attempt %u at %lu from %lu successfully received ack %lu [%d|%d|%d|%d]\n",content,i,tv.tv_sec,send_start,received,tmp_msg.d.target,tmp_msg.d.payload1,tmp_msg.d.payload2,tmp_msg.d.order); ack_received = true; usleep (send_ack_received_delay);}
@@ -833,23 +841,23 @@ unsigned long send_msg (unsigned long long_message) {
       }  // while end
     } while ((i < send_loop_cycles) && !ack_received);
     if (!ack_received) {
-      log_message (570,2,"%lu - Send attempts %d used at %lu from %lu missing ack [%d|%d|%d|%d]\n",content,i,tv.tv_sec,send_start,tmp_msg.d.target,tmp_msg.d.payload1,tmp_msg.d.payload2,tmp_msg.d.order);
+      log_message (570,2,"Send of %lu with %d attempts failed at %lu from %lu missing ack [%d|%d|%d|%d], expecting ack %lu\n",content,i,tv.tv_sec,send_start,tmp_msg.d.target,tmp_msg.d.payload1,tmp_msg.d.payload2,tmp_msg.d.order,content_ack);
     }
     //usleep (send_loop_end_sleep_nrf*1000);
     send_delay(7);
   } // Sending via NRF
 }
 
-unsigned long receive_msg (unsigned int receive_loops, unsigned long waiting_for) {
-  unsigned int i = 1;
-  unsigned long received = 0;
+uint32_t receive_msg (uint32_t receive_loops, uint32_t waiting_for) {
+  uint32_t i = 1;
+  uint32_t received = 0;
   log_message (850,1,"Receive loop started %u executions\n",receive_loops);
 //  radio.startListening ();
   for (i = 0; i < receive_loops; i++)
   {
       if (!radio.available ()) {usleep (receive_loop_cycle_wait);};
       while (radio.available ()) {
-      radio.read (&received,sizeof (unsigned long));
+      radio.read (&received,sizeof (uint32_t));
       received = received | mask_long_retransfer;
       log_message (750,2,"Received %lu in loop %u\n",received,i);
       if ((received == waiting_for) && (waiting_for != 0))
@@ -862,12 +870,12 @@ unsigned long receive_msg (unsigned int receive_loops, unsigned long waiting_for
   return 0;
 } // receive_msg
 
-int read_queue_from_file () {
+int32_t read_queue_from_file () {
   FILE* queue_file;
-  int i = 0;
-  int destination;
-  int engine;
-  int order;
+  int32_t i = 0;
+  int32_t destination;
+  int32_t engine;
+  int32_t order;
   union Frame tmp_msg ;
   //fist check existence of file
   if (0 != access(file_queue_openhab, 0)) { log_message (900,1,"File %s did not exists, no queue read\n",file_queue_openhab); return 1;} 
@@ -905,13 +913,13 @@ int read_queue_from_file () {
   remove (file_queue_process);
 }
 
-int main(int argc, char** argv) {
+int32_t main(int32_t argc, char** argv) {
   bool nrf_sender = true;
   bool should_sleep = true;
-  int i = 0;
-  int fast_loops = 0;
-  int sleep_interval;
-  unsigned long test_send;
+  int32_t i = 0;
+  int32_t fast_loops = 0;
+  int32_t sleep_interval;
+  uint32_t test_send;
   
   if (log_to_syslog) { openlog("HomeAutomationServer", LOG_PID, LOG_USER); }
   log_message (710,1,"START SERVER FOR RF24 VERSION: %s %s\n", version_number, version_text);
@@ -924,6 +932,7 @@ int main(int argc, char** argv) {
   
   start_radio ();
   radio433_init ();
+  radio.printDetails ();
   log_message (770,1,"Radio started\n");
 
   while (running)

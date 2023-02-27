@@ -204,6 +204,9 @@ Switch PERSISTENCE { channel="exec:command:persistence:run" }
 String PERSISTENCE_Args { channel="exec:command:persistence:input" }
 String PERSISTENCE_Out { channel="exec:command:persistence:output" }
 
+// STARTUP DELAYER
+Switch LATE_STARTUP "Swith to delay startup"
+
 // TEST SECTION
 Group gTEST "TEST GROUP" <error>
 

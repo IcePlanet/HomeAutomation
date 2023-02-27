@@ -1,7 +1,7 @@
 # Makefile for Home automation project
 
 CC=g++
-CFLAGS=-I. -I/usr/local/include/RF24 -L/usr/local/lib -lrf24
+CFLAGS=-I. -I/usr/local/include/RF24 -L/usr/local/lib -lrf24 -lwiringPi
 DEPS = CommonAutomation.h
 OBJ=PiTest_HelloWorld.o
 PCOBJ=PiTest_HelloWorld_FROM_PC.o

@@ -1,5 +1,6 @@
 import java.util.concurrent.locks.ReentrantLock
-import org.eclipse.smarthome.model.script.ScriptServiceUtil
+import org.openhab.core.model.script.ScriptServiceUtil
+//import org.openhab.core.thing.ThingStatus
 //import java.util.HashMap
 
 var ReentrantLock arduino_writer = new ReentrantLock
@@ -8,28 +9,72 @@ var ReentrantLock auto_runner_lock = new ReentrantLock
 var ReentrantLock timer_lock = new ReentrantLock
 var Integer running_persistence_read = 0
 val Integer sensor_default_hyst = 30
-val Integer sensor_default_dark = 90
+val Integer sensor_default_dark = 100
 val Integer sensor_default_sunshine = 200
 val Integer default_lockout_time = 5 // default time in minutes to wait after engine run (valid for automation mode only)
 var Timer timer_main = null
 var String timer_queue = ""
 
-rule "Startup"
-  when 
+rule "System_Startup_Delayer"
+  when
     System started
   then
+    Thread::sleep(5000)
+    Thread::sleep(5000)
+    Thread::sleep(5000)
+    Thread::sleep(5000)
+    Thread::sleep(5000)
+    Thread::sleep(5000)
+    Thread::sleep(5000)
+    Thread::sleep(5000)
+    Thread::sleep(5000)
+    Thread::sleep(5000)
+    Thread::sleep(5000)
+    Thread::sleep(5000)
+    Thread::sleep(5000)
+    Thread::sleep(5000)
+    Thread::sleep(5000)
+    Thread::sleep(5000)
+    Thread::sleep(5000)
+    Thread::sleep(5000)
+    Thread::sleep(5000)
+    Thread::sleep(5000)
+    Thread::sleep(5000)
+    Thread::sleep(5000)
+    Thread::sleep(5000)
+    Thread::sleep(5000)
+    Thread::sleep(5000)
+    Thread::sleep(5000)
+    LATE_STARTUP.sendCommand(ON)
+end
+rule "RealStartup"
+  when 
+//    System started
+    Item LATE_STARTUP received command ON
+  then
+//    var ThingStatusInfo persistence_binding_status = getThingStatusInfo("exec:command:persistence")
+//    var ThingStatusInfo arduino_binding_status = getThingStatusInfo("exec:command:arduino_send")
     logInfo ("STARTUP", "System Starting... home_away status: "+HOME_AWAY.state)
     auto_runner_lock.lock()
+    Thread::sleep (4321) 
+//    logInfo ("STARTUP", "Before binding wait loop: "+persistence_binding_status.getStatus().toString()+" arduino:"+arduino_binding_status.getStatus().toString())
+//    while (((persistence_binding_status === null) || (persistence_binding_status.getStatus().toString() != "ONLINE")) || ((arduino_binding_status === null) || (arduino_binding_status.getStatus().toString() != "ONLINE"))) {
+//      logInfo ("STARTUP", "Waiting for exec bindings to start, currently persistence: "+persistence_binding_status.getStatus().toString()+" arduino:"+arduino_binding_status.getStatus().toString())
+//      Thread::sleep (1234)
+//      persistence_binding_status = getThingStatusInfo("exec:command:persistence")
+//      arduino_binding_status = getThingStatusInfo("exec:command:arduino_send")
+//    }
+//    logInfo ("STARTUP", "After binding wait loop "+persistence_binding_status.getStatus().toString()+" arduino:"+arduino_binding_status.getStatus().toString())
     running_persistence_read = 1
     gPersistent.getMembers.forEach [p | 
+      logInfo ("Persistence", "Persistence refreshing "+p.name+" in state "+p.state.toString())
       if ( p.state == NULL ) {
         try {
-          //logInfo ("Persistence", "Persistence refreshing "+p.name)
           persistence_lock.lock()
           PERSISTENCE_Args.sendCommand("-R -a "+p.name)
           PERSISTENCE.sendCommand(ON)
           while (PERSISTENCE.state == ON) {
-            Thread::sleep (500)
+            Thread::sleep (100)
           }
           Thread::sleep (1000)
           if ( PERSISTENCE_Out.state.toString.length > 0 ) {
@@ -47,6 +92,7 @@ rule "Startup"
     ]
     Thread::sleep (1000)
     running_persistence_read = 0
+    logInfo ("Persistence", "After persistence read")
     if ( AUTO_MODE.state == NULL ) { AUTO_MODE.postUpdate(0) } // The default auto mode is neutral
     if ( S_light_southffxDarkTreshold.state == NULL ) { S_light_southffxDarkTreshold.postUpdate(sensor_default_dark) }
     if ( S_light_southffxSunshineTreshold.state == NULL ) { S_light_southffxSunshineTreshold.postUpdate(sensor_default_sunshine) }
@@ -119,6 +165,7 @@ rule "Startup"
     if ( Z0_S_WINTER_CHODNIK1xLastRunTime.state == NULL ) { Z0_S_WINTER_CHODNIK1xLastRunTime.postUpdate(new DateTimeType().toString) } // updating last run time on startup to allow all sensors startup and data transfer
     if ( Z0_S_WINTER_CHODNIK1xArduinoID.state == NULL ) { Z0_S_WINTER_CHODNIK1xArduinoID.postUpdate(52) }
     if ( Z0_S_WINTER_CHODNIK1xEngineID.state == NULL ) { Z0_S_WINTER_CHODNIK1xEngineID.postUpdate(4) }
+    if ( Z0_S_WINTER_CHODNIK1xAutoManual.state == NULL ) { Z0_S_WINTER_CHODNIK1xAutoManual.postUpdate(0) }
     // STARTUP SETTINGS WINTER WINDOW TO CHODNIK2
     if ( Z0_S_WINTER_CHODNIK2xPlants.state == NULL ) { Z0_S_WINTER_CHODNIK2xPlants.postUpdate(1) }
     if ( Z0_S_WINTER_CHODNIK2xDoorProtect.state == NULL ) { Z0_S_WINTER_CHODNIK2xDoorProtect.postUpdate(0) }
@@ -127,6 +174,7 @@ rule "Startup"
     if ( Z0_S_WINTER_CHODNIK2xLastRunTime.state == NULL ) { Z0_S_WINTER_CHODNIK2xLastRunTime.postUpdate(new DateTimeType().toString) } // updating last run time on startup to allow all sensors startup and data transfer
     if ( Z0_S_WINTER_CHODNIK2xArduinoID.state == NULL ) { Z0_S_WINTER_CHODNIK2xArduinoID.postUpdate(52) }
     if ( Z0_S_WINTER_CHODNIK2xEngineID.state == NULL ) { Z0_S_WINTER_CHODNIK2xEngineID.postUpdate(5) }
+    if ( Z0_S_WINTER_CHODNIK2xAutoManual.state == NULL ) { Z0_S_WINTER_CHODNIK2xAutoManual.postUpdate(0) }
     // STARTUP SETTINGS MARTIN BIG
     if ( Z1_S_MARTIN_BIGxPlants.state == NULL ) { Z1_S_MARTIN_BIGxPlants.postUpdate(1) }
     if ( Z1_S_MARTIN_BIGxDoorProtect.state == NULL ) { Z1_S_MARTIN_BIGxDoorProtect.postUpdate(0) }
@@ -137,6 +185,7 @@ rule "Startup"
     if ( Z1_S_MARTIN_BIGxEngineID.state == NULL ) { Z1_S_MARTIN_BIGxEngineID.postUpdate(1) }
     logInfo ("STARTUP", "Startup finished...")
     auto_runner_lock.unlock()
+    LATE_STARTUP.sendCommand(OFF)
 end
 
 rule "Write_Persistence"
@@ -179,7 +228,7 @@ rule "Re-enable auto mode"
         }
       }
     ]
-    triggeringItem.sendCommand(OFF)
+    AUTO_RE_ENABLE.sendCommand(OFF)
     logInfo ("Rollershutter", "Re-Enable: finished")
 end
 
