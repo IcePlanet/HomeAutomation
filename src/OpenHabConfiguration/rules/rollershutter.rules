@@ -14,197 +14,171 @@ val Integer sensor_default_sunshine = 200
 val Integer default_lockout_time = 5 // default time in minutes to wait after engine run (valid for automation mode only)
 var Timer timer_main = null
 var String timer_queue = ""
+var SystemStarted = 0
 
-rule "System_Startup_Delayer"
-  when
-    System started
-  then
-    Thread::sleep(5000)
-    Thread::sleep(5000)
-    Thread::sleep(5000)
-    Thread::sleep(5000)
-    Thread::sleep(5000)
-    Thread::sleep(5000)
-    Thread::sleep(5000)
-    Thread::sleep(5000)
-    Thread::sleep(5000)
-    Thread::sleep(5000)
-    Thread::sleep(5000)
-    Thread::sleep(5000)
-    Thread::sleep(5000)
-    Thread::sleep(5000)
-    Thread::sleep(5000)
-    Thread::sleep(5000)
-    Thread::sleep(5000)
-    Thread::sleep(5000)
-    Thread::sleep(5000)
-    Thread::sleep(5000)
-    Thread::sleep(5000)
-    Thread::sleep(5000)
-    Thread::sleep(5000)
-    Thread::sleep(5000)
-    Thread::sleep(5000)
-    Thread::sleep(5000)
-    LATE_STARTUP.sendCommand(ON)
-end
-rule "RealStartup"
+rule "Startup"
   when 
+//    System reached start level 100
+    System reached start level 50
 //    System started
-    Item LATE_STARTUP received command ON
   then
-//    var ThingStatusInfo persistence_binding_status = getThingStatusInfo("exec:command:persistence")
-//    var ThingStatusInfo arduino_binding_status = getThingStatusInfo("exec:command:arduino_send")
-    logInfo ("STARTUP", "System Starting... home_away status: "+HOME_AWAY.state)
-    auto_runner_lock.lock()
-    Thread::sleep (4321) 
-//    logInfo ("STARTUP", "Before binding wait loop: "+persistence_binding_status.getStatus().toString()+" arduino:"+arduino_binding_status.getStatus().toString())
-//    while (((persistence_binding_status === null) || (persistence_binding_status.getStatus().toString() != "ONLINE")) || ((arduino_binding_status === null) || (arduino_binding_status.getStatus().toString() != "ONLINE"))) {
-//      logInfo ("STARTUP", "Waiting for exec bindings to start, currently persistence: "+persistence_binding_status.getStatus().toString()+" arduino:"+arduino_binding_status.getStatus().toString())
-//      Thread::sleep (1234)
-//      persistence_binding_status = getThingStatusInfo("exec:command:persistence")
-//      arduino_binding_status = getThingStatusInfo("exec:command:arduino_send")
-//    }
-//    logInfo ("STARTUP", "After binding wait loop "+persistence_binding_status.getStatus().toString()+" arduino:"+arduino_binding_status.getStatus().toString())
-    running_persistence_read = 1
-    gPersistent.getMembers.forEach [p | 
-      logInfo ("Persistence", "Persistence refreshing "+p.name+" in state "+p.state.toString())
-      if ( p.state == NULL ) {
-        try {
-          persistence_lock.lock()
-          PERSISTENCE_Args.sendCommand("-R -a "+p.name)
-          PERSISTENCE.sendCommand(ON)
-          while (PERSISTENCE.state == ON) {
-            Thread::sleep (100)
-          }
-          Thread::sleep (1000)
-          if ( PERSISTENCE_Out.state.toString.length > 0 ) {
-            logInfo ("Persistence", "Persistence read for "+p.name+" as "+PERSISTENCE_Out.state+" ("+PERSISTENCE_Out.state.toString.length+")")
-            postUpdate (p.name.toString, PERSISTENCE_Out.state.toString)
-          }
-          else {
-            logInfo ("Persistence", "Persistence NOT read for "+p.name+" as "+PERSISTENCE_Out.state+" ("+PERSISTENCE_Out.state.toString.length+")")
-          }
-        } catch(Throwable t) { logInfo ("Rollershutter", "ERROR EXCEPTION IN Timer_expired") }
-        finally {
-            persistence_lock.unlock()
-        } //finally
+    var ThingStatusInfo persistence_binding_status = getThingStatusInfo("exec:command:persistence")
+    var ThingStatusInfo arduino_binding_status = getThingStatusInfo("exec:command:arduino_send")
+    logInfo ("STARTUP", "System Starting... home_away status: "+HOME_AWAY.state+" System Started value:"+SystemStarted)
+    if (SystemStarted == 0) {
+      auto_runner_lock.lock()
+      Thread::sleep (4321) 
+      logInfo ("STARTUP", "Before binding wait loop: "+persistence_binding_status.getStatus().toString()+" arduino:"+arduino_binding_status.getStatus().toString())
+      while (((persistence_binding_status === null) || (persistence_binding_status.getStatus().toString() != "ONLINE")) || ((arduino_binding_status === null) || (arduino_binding_status.getStatus().toString() != "ONLINE"))) {
+        logInfo ("STARTUP", "Waiting for exec bindings to start, currently persistence: "+persistence_binding_status.getStatus().toString()+" arduino:"+arduino_binding_status.getStatus().toString())
+        Thread::sleep (1234)
+        persistence_binding_status = getThingStatusInfo("exec:command:persistence")
+        arduino_binding_status = getThingStatusInfo("exec:command:arduino_send")
       }
-    ]
-    Thread::sleep (1000)
-    running_persistence_read = 0
-    logInfo ("Persistence", "After persistence read")
-    if ( AUTO_MODE.state == NULL ) { AUTO_MODE.postUpdate(0) } // The default auto mode is neutral
-    if ( S_light_southffxDarkTreshold.state == NULL ) { S_light_southffxDarkTreshold.postUpdate(sensor_default_dark) }
-    if ( S_light_southffxSunshineTreshold.state == NULL ) { S_light_southffxSunshineTreshold.postUpdate(sensor_default_sunshine) }
-    if ( S_light_southffxHysteresis.state == NULL ) { S_light_southffxHysteresis.postUpdate(sensor_default_hyst) }
-    // Reset timer 
-    timer_main = null
-    // TODO: Temporary entered here until sensor is available (then delete next line)
-    S_rain_southffxRAIN.postUpdate(0)
-    // STARTUP SETTINGS PETER BIG
-    if ( Z1_S_PETER_BIGxPlants.state == NULL ) { Z1_S_PETER_BIGxPlants.postUpdate(1) }
-    if ( Z1_S_PETER_BIGxDoorProtect.state == NULL ) { Z1_S_PETER_BIGxDoorProtect.postUpdate(0) }
-    if ( Z1_S_PETER_BIGxRainProtect.state == NULL ) { Z1_S_PETER_BIGxRainProtect.postUpdate(1) }
-    if ( Z1_S_PETER_BIGxCoolingAllowed.state == NULL ) { Z1_S_PETER_BIGxCoolingAllowed.postUpdate(0) }
-    if ( Z1_S_PETER_BIGxLastRunTime.state == NULL ) { Z1_S_PETER_BIGxLastRunTime.postUpdate(new DateTimeType().toString) } // updating last run time on startup to allow all sensors startup and data transfer
-    if ( Z1_S_PETER_BIGxArduinoID.state == NULL ) { Z1_S_PETER_BIGxArduinoID.postUpdate(11) }
-    if ( Z1_S_PETER_BIGxEngineID.state == NULL ) { Z1_S_PETER_BIGxEngineID.postUpdate(1) }
-    // STARTUP SETTINGS PETER SMALL
-    if ( Z1_S_PETER_SMALLxPlants.state == NULL ) { Z1_S_PETER_SMALLxPlants.postUpdate(1) }
-    if ( Z1_S_PETER_SMALLxDoorProtect.state == NULL ) { Z1_S_PETER_SMALLxDoorProtect.postUpdate(0) }
-    if ( Z1_S_PETER_SMALLxRainProtect.state == NULL ) { Z1_S_PETER_SMALLxRainProtect.postUpdate(1) }
-    if ( Z1_S_PETER_SMALLxCoolingAllowed.state == NULL ) { Z1_S_PETER_SMALLxCoolingAllowed.postUpdate(0) }
-    if ( Z1_S_PETER_SMALLxLastRunTime.state == NULL ) { Z1_S_PETER_SMALLxLastRunTime.postUpdate(new DateTimeType().toString) } // updating last run time on startup to allow all sensors startup and data transfer
-    if ( Z1_S_PETER_SMALLxArduinoID.state == NULL ) { Z1_S_PETER_SMALLxArduinoID.postUpdate(12) }
-    if ( Z1_S_PETER_SMALLxEngineID.state == NULL ) { Z1_S_PETER_SMALLxEngineID.postUpdate(1) }
-    // STARTUP SETTINGS LIVING ROOM DOOR
-    if ( Z0_S_LIVING_DOORxPlants.state == NULL ) { Z0_S_LIVING_DOORxPlants.postUpdate(1) }
-    if ( Z0_S_LIVING_DOORxDoorProtect.state == NULL ) { Z0_S_LIVING_DOORxDoorProtect.postUpdate(0) }
-    if ( Z0_S_LIVING_DOORxRainProtect.state == NULL ) { Z0_S_LIVING_DOORxRainProtect.postUpdate(1) }
-    if ( Z0_S_LIVING_DOORxCoolingAllowed.state == NULL ) { Z0_S_LIVING_DOORxCoolingAllowed.postUpdate(0) }
-    if ( Z0_S_LIVING_DOORxLastRunTime.state == NULL ) { Z0_S_LIVING_DOORxLastRunTime.postUpdate(new DateTimeType().toString) } // updating last run time on startup to allow all sensors startup and data transfer
-    if ( Z0_S_LIVING_DOORxArduinoID.state == NULL ) { Z0_S_LIVING_DOORxArduinoID.postUpdate(51) }
-    if ( Z0_S_LIVING_DOORxEngineID.state == NULL ) { Z0_S_LIVING_DOORxEngineID.postUpdate(1) }
-    // STARTUP SETTINGS LIVING ROOM WINDOW
-    if ( Z0_S_LIVING_WINDOWxPlants.state == NULL ) { Z0_S_LIVING_WINDOWxPlants.postUpdate(1) }
-    if ( Z0_S_LIVING_WINDOWxDoorProtect.state == NULL ) { Z0_S_LIVING_WINDOWxDoorProtect.postUpdate(0) }
-    if ( Z0_S_LIVING_WINDOWxRainProtect.state == NULL ) { Z0_S_LIVING_WINDOWxRainProtect.postUpdate(1) }
-    if ( Z0_S_LIVING_WINDOWxCoolingAllowed.state == NULL ) { Z0_S_LIVING_WINDOWxCoolingAllowed.postUpdate(0) }
-    if ( Z0_S_LIVING_WINDOWxLastRunTime.state == NULL ) { Z0_S_LIVING_WINDOWxLastRunTime.postUpdate(new DateTimeType().toString) } // updating last run time on startup to allow all sensors startup and data transfer
-    if ( Z0_S_LIVING_WINDOWxArduinoID.state == NULL ) { Z0_S_LIVING_WINDOWxArduinoID.postUpdate(51) }
-    if ( Z0_S_LIVING_WINDOWxEngineID.state == NULL ) { Z0_S_LIVING_WINDOWxEngineID.postUpdate(2) }
-    // STARTUP SETTINGS WINTER DOOR
-    if ( Z0_S_WINTER_DOORxPlants.state == NULL ) { Z0_S_WINTER_DOORxPlants.postUpdate(1) }
-    if ( Z0_S_WINTER_DOORxDoorProtect.state == NULL ) { Z0_S_WINTER_DOORxDoorProtect.postUpdate(0) }
-    if ( Z0_S_WINTER_DOORxRainProtect.state == NULL ) { Z0_S_WINTER_DOORxRainProtect.postUpdate(1) }
-    if ( Z0_S_WINTER_DOORxCoolingAllowed.state == NULL ) { Z0_S_WINTER_DOORxCoolingAllowed.postUpdate(0) }
-    if ( Z0_S_WINTER_DOORxLastRunTime.state == NULL ) { Z0_S_WINTER_DOORxLastRunTime.postUpdate(new DateTimeType().toString) } // updating last run time on startup to allow all sensors startup and data transfer
-    if ( Z0_S_WINTER_DOORxArduinoID.state == NULL ) { Z0_S_WINTER_DOORxArduinoID.postUpdate(52) }
-    if ( Z0_S_WINTER_DOORxEngineID.state == NULL ) { Z0_S_WINTER_DOORxEngineID.postUpdate(1) }
-    // STARTUP SETTINGS WINTER WINDOW TO TERASA1
-    if ( Z0_S_WINTER_TERASA1xPlants.state == NULL ) { Z0_S_WINTER_TERASA1xPlants.postUpdate(1) }
-    if ( Z0_S_WINTER_TERASA1xDoorProtect.state == NULL ) { Z0_S_WINTER_TERASA1xDoorProtect.postUpdate(0) }
-    if ( Z0_S_WINTER_TERASA1xRainProtect.state == NULL ) { Z0_S_WINTER_TERASA1xRainProtect.postUpdate(1) }
-    if ( Z0_S_WINTER_TERASA1xCoolingAllowed.state == NULL ) { Z0_S_WINTER_TERASA1xCoolingAllowed.postUpdate(0) }
-    if ( Z0_S_WINTER_TERASA1xLastRunTime.state == NULL ) { Z0_S_WINTER_TERASA1xLastRunTime.postUpdate(new DateTimeType().toString) } // updating last run time on startup to allow all sensors startup and data transfer
-    if ( Z0_S_WINTER_TERASA1xArduinoID.state == NULL ) { Z0_S_WINTER_TERASA1xArduinoID.postUpdate(52) }
-    if ( Z0_S_WINTER_TERASA1xEngineID.state == NULL ) { Z0_S_WINTER_TERASA1xEngineID.postUpdate(2) }
-    // STARTUP SETTINGS WINTER WINDOW TO TERASA2
-    if ( Z0_S_WINTER_TERASA2xPlants.state == NULL ) { Z0_S_WINTER_TERASA2xPlants.postUpdate(1) }
-    if ( Z0_S_WINTER_TERASA2xDoorProtect.state == NULL ) { Z0_S_WINTER_TERASA2xDoorProtect.postUpdate(0) }
-    if ( Z0_S_WINTER_TERASA2xRainProtect.state == NULL ) { Z0_S_WINTER_TERASA2xRainProtect.postUpdate(1) }
-    if ( Z0_S_WINTER_TERASA2xCoolingAllowed.state == NULL ) { Z0_S_WINTER_TERASA2xCoolingAllowed.postUpdate(0) }
-    if ( Z0_S_WINTER_TERASA2xLastRunTime.state == NULL ) { Z0_S_WINTER_TERASA2xLastRunTime.postUpdate(new DateTimeType().toString) } // updating last run time on startup to allow all sensors startup and data transfer
-    if ( Z0_S_WINTER_TERASA2xArduinoID.state == NULL ) { Z0_S_WINTER_TERASA2xArduinoID.postUpdate(52) }
-    if ( Z0_S_WINTER_TERASA2xEngineID.state == NULL ) { Z0_S_WINTER_TERASA2xEngineID.postUpdate(3) }
-    // STARTUP SETTINGS WINTER WINDOW TO CHODNIK1
-    if ( Z0_S_WINTER_CHODNIK1xPlants.state == NULL ) { Z0_S_WINTER_CHODNIK1xPlants.postUpdate(1) }
-    if ( Z0_S_WINTER_CHODNIK1xDoorProtect.state == NULL ) { Z0_S_WINTER_CHODNIK1xDoorProtect.postUpdate(0) }
-    if ( Z0_S_WINTER_CHODNIK1xRainProtect.state == NULL ) { Z0_S_WINTER_CHODNIK1xRainProtect.postUpdate(1) }
-    if ( Z0_S_WINTER_CHODNIK1xCoolingAllowed.state == NULL ) { Z0_S_WINTER_CHODNIK1xCoolingAllowed.postUpdate(0) }
-    if ( Z0_S_WINTER_CHODNIK1xLastRunTime.state == NULL ) { Z0_S_WINTER_CHODNIK1xLastRunTime.postUpdate(new DateTimeType().toString) } // updating last run time on startup to allow all sensors startup and data transfer
-    if ( Z0_S_WINTER_CHODNIK1xArduinoID.state == NULL ) { Z0_S_WINTER_CHODNIK1xArduinoID.postUpdate(52) }
-    if ( Z0_S_WINTER_CHODNIK1xEngineID.state == NULL ) { Z0_S_WINTER_CHODNIK1xEngineID.postUpdate(4) }
-    if ( Z0_S_WINTER_CHODNIK1xAutoManual.state == NULL ) { Z0_S_WINTER_CHODNIK1xAutoManual.postUpdate(0) }
-    // STARTUP SETTINGS WINTER WINDOW TO CHODNIK2
-    if ( Z0_S_WINTER_CHODNIK2xPlants.state == NULL ) { Z0_S_WINTER_CHODNIK2xPlants.postUpdate(1) }
-    if ( Z0_S_WINTER_CHODNIK2xDoorProtect.state == NULL ) { Z0_S_WINTER_CHODNIK2xDoorProtect.postUpdate(0) }
-    if ( Z0_S_WINTER_CHODNIK2xRainProtect.state == NULL ) { Z0_S_WINTER_CHODNIK2xRainProtect.postUpdate(1) }
-    if ( Z0_S_WINTER_CHODNIK2xCoolingAllowed.state == NULL ) { Z0_S_WINTER_CHODNIK2xCoolingAllowed.postUpdate(0) }
-    if ( Z0_S_WINTER_CHODNIK2xLastRunTime.state == NULL ) { Z0_S_WINTER_CHODNIK2xLastRunTime.postUpdate(new DateTimeType().toString) } // updating last run time on startup to allow all sensors startup and data transfer
-    if ( Z0_S_WINTER_CHODNIK2xArduinoID.state == NULL ) { Z0_S_WINTER_CHODNIK2xArduinoID.postUpdate(52) }
-    if ( Z0_S_WINTER_CHODNIK2xEngineID.state == NULL ) { Z0_S_WINTER_CHODNIK2xEngineID.postUpdate(5) }
-    if ( Z0_S_WINTER_CHODNIK2xAutoManual.state == NULL ) { Z0_S_WINTER_CHODNIK2xAutoManual.postUpdate(0) }
-    // STARTUP SETTINGS MARTIN BIG
-    if ( Z1_S_MARTIN_BIGxPlants.state == NULL ) { Z1_S_MARTIN_BIGxPlants.postUpdate(1) }
-    if ( Z1_S_MARTIN_BIGxDoorProtect.state == NULL ) { Z1_S_MARTIN_BIGxDoorProtect.postUpdate(0) }
-    if ( Z1_S_MARTIN_BIGxRainProtect.state == NULL ) { Z1_S_MARTIN_BIGxRainProtect.postUpdate(1) }
-    if ( Z1_S_MARTIN_BIGxCoolingAllowed.state == NULL ) { Z1_S_MARTIN_BIGxCoolingAllowed.postUpdate(1) }
-    if ( Z1_S_MARTIN_BIGxLastRunTime.state == NULL ) { Z1_S_MARTIN_BIGxLastRunTime.postUpdate(new DateTimeType().toString) } // updating last run time on startup to allow all sensors startup and data transfer
-    if ( Z1_S_MARTIN_BIGxArduinoID.state == NULL ) { Z1_S_MARTIN_BIGxArduinoID.postUpdate(13) }
-    if ( Z1_S_MARTIN_BIGxEngineID.state == NULL ) { Z1_S_MARTIN_BIGxEngineID.postUpdate(1) }
-    logInfo ("STARTUP", "Startup finished...")
-    auto_runner_lock.unlock()
-    LATE_STARTUP.sendCommand(OFF)
+      logInfo ("STARTUP", "After binding wait loop "+persistence_binding_status.getStatus().toString()+" arduino:"+arduino_binding_status.getStatus().toString())
+      running_persistence_read = 1
+      gPersistent.getMembers.forEach [p | 
+        logInfo ("Persistence", "Persistence refreshing "+p.name+" in state "+p.state.toString())
+        if ( p.state == NULL ) {
+          try {
+            persistence_lock.lock()
+            PERSISTENCE_Args.sendCommand("-R -a "+p.name)
+            PERSISTENCE.sendCommand(ON)
+            while (PERSISTENCE.state == ON) {
+              Thread::sleep (100)
+            }
+            Thread::sleep (1000)
+            if ( PERSISTENCE_Out.state.toString.length > 0 ) {
+              logInfo ("Persistence", "Persistence read for "+p.name+" as "+PERSISTENCE_Out.state+" ("+PERSISTENCE_Out.state.toString.length+")")
+              postUpdate (p.name.toString, PERSISTENCE_Out.state.toString)
+            }
+            else {
+              logInfo ("Persistence", "Persistence NOT read for "+p.name+" as "+PERSISTENCE_Out.state+" ("+PERSISTENCE_Out.state.toString.length+")")
+            }
+          } catch(Throwable t) { logInfo ("Rollershutter", "ERROR EXCEPTION IN Timer_expired") }
+          finally {
+              persistence_lock.unlock()
+          } //finally
+        }
+      ]
+      Thread::sleep (1000)
+      running_persistence_read = 0
+      logInfo ("Persistence", "After persistence read")
+      if ( AUTO_MODE.state == NULL ) { AUTO_MODE.postUpdate(0) } // The default auto mode is neutral
+      if ( S_light_southffxDarkTreshold.state == NULL ) { S_light_southffxDarkTreshold.postUpdate(sensor_default_dark) }
+      if ( S_light_southffxSunshineTreshold.state == NULL ) { S_light_southffxSunshineTreshold.postUpdate(sensor_default_sunshine) }
+      if ( S_light_southffxHysteresis.state == NULL ) { S_light_southffxHysteresis.postUpdate(sensor_default_hyst) }
+      // Reset timer 
+      timer_main = null
+      // TODO: Temporary entered here until sensor is available (then delete next line)
+      S_rain_southffxRAIN.postUpdate(0)
+      // STARTUP SETTINGS PETER BIG
+      if ( Z1_S_PETER_BIGxPlants.state == NULL ) { Z1_S_PETER_BIGxPlants.postUpdate(1) }
+      if ( Z1_S_PETER_BIGxDoorProtect.state == NULL ) { Z1_S_PETER_BIGxDoorProtect.postUpdate(0) }
+      if ( Z1_S_PETER_BIGxRainProtect.state == NULL ) { Z1_S_PETER_BIGxRainProtect.postUpdate(1) }
+      if ( Z1_S_PETER_BIGxCoolingAllowed.state == NULL ) { Z1_S_PETER_BIGxCoolingAllowed.postUpdate(0) }
+      if ( Z1_S_PETER_BIGxLastRunTime.state == NULL ) { Z1_S_PETER_BIGxLastRunTime.postUpdate(new DateTimeType().toString) } // updating last run time on startup to allow all sensors startup and data transfer
+      if ( Z1_S_PETER_BIGxArduinoID.state == NULL ) { Z1_S_PETER_BIGxArduinoID.postUpdate(11) }
+      if ( Z1_S_PETER_BIGxEngineID.state == NULL ) { Z1_S_PETER_BIGxEngineID.postUpdate(1) }
+      // STARTUP SETTINGS PETER SMALL
+      if ( Z1_S_PETER_SMALLxPlants.state == NULL ) { Z1_S_PETER_SMALLxPlants.postUpdate(1) }
+      if ( Z1_S_PETER_SMALLxDoorProtect.state == NULL ) { Z1_S_PETER_SMALLxDoorProtect.postUpdate(0) }
+      if ( Z1_S_PETER_SMALLxRainProtect.state == NULL ) { Z1_S_PETER_SMALLxRainProtect.postUpdate(1) }
+      if ( Z1_S_PETER_SMALLxCoolingAllowed.state == NULL ) { Z1_S_PETER_SMALLxCoolingAllowed.postUpdate(0) }
+      if ( Z1_S_PETER_SMALLxLastRunTime.state == NULL ) { Z1_S_PETER_SMALLxLastRunTime.postUpdate(new DateTimeType().toString) } // updating last run time on startup to allow all sensors startup and data transfer
+      if ( Z1_S_PETER_SMALLxArduinoID.state == NULL ) { Z1_S_PETER_SMALLxArduinoID.postUpdate(12) }
+      if ( Z1_S_PETER_SMALLxEngineID.state == NULL ) { Z1_S_PETER_SMALLxEngineID.postUpdate(1) }
+      // STARTUP SETTINGS LIVING ROOM DOOR
+      if ( Z0_S_LIVING_DOORxPlants.state == NULL ) { Z0_S_LIVING_DOORxPlants.postUpdate(1) }
+      if ( Z0_S_LIVING_DOORxDoorProtect.state == NULL ) { Z0_S_LIVING_DOORxDoorProtect.postUpdate(0) }
+      if ( Z0_S_LIVING_DOORxRainProtect.state == NULL ) { Z0_S_LIVING_DOORxRainProtect.postUpdate(1) }
+      if ( Z0_S_LIVING_DOORxCoolingAllowed.state == NULL ) { Z0_S_LIVING_DOORxCoolingAllowed.postUpdate(0) }
+      if ( Z0_S_LIVING_DOORxLastRunTime.state == NULL ) { Z0_S_LIVING_DOORxLastRunTime.postUpdate(new DateTimeType().toString) } // updating last run time on startup to allow all sensors startup and data transfer
+      if ( Z0_S_LIVING_DOORxArduinoID.state == NULL ) { Z0_S_LIVING_DOORxArduinoID.postUpdate(51) }
+      if ( Z0_S_LIVING_DOORxEngineID.state == NULL ) { Z0_S_LIVING_DOORxEngineID.postUpdate(1) }
+      // STARTUP SETTINGS LIVING ROOM WINDOW
+      if ( Z0_S_LIVING_WINDOWxPlants.state == NULL ) { Z0_S_LIVING_WINDOWxPlants.postUpdate(1) }
+      if ( Z0_S_LIVING_WINDOWxDoorProtect.state == NULL ) { Z0_S_LIVING_WINDOWxDoorProtect.postUpdate(0) }
+      if ( Z0_S_LIVING_WINDOWxRainProtect.state == NULL ) { Z0_S_LIVING_WINDOWxRainProtect.postUpdate(1) }
+      if ( Z0_S_LIVING_WINDOWxCoolingAllowed.state == NULL ) { Z0_S_LIVING_WINDOWxCoolingAllowed.postUpdate(0) }
+      if ( Z0_S_LIVING_WINDOWxLastRunTime.state == NULL ) { Z0_S_LIVING_WINDOWxLastRunTime.postUpdate(new DateTimeType().toString) } // updating last run time on startup to allow all sensors startup and data transfer
+      if ( Z0_S_LIVING_WINDOWxArduinoID.state == NULL ) { Z0_S_LIVING_WINDOWxArduinoID.postUpdate(51) }
+      if ( Z0_S_LIVING_WINDOWxEngineID.state == NULL ) { Z0_S_LIVING_WINDOWxEngineID.postUpdate(2) }
+      // STARTUP SETTINGS WINTER DOOR
+      if ( Z0_S_WINTER_DOORxPlants.state == NULL ) { Z0_S_WINTER_DOORxPlants.postUpdate(1) }
+      if ( Z0_S_WINTER_DOORxDoorProtect.state == NULL ) { Z0_S_WINTER_DOORxDoorProtect.postUpdate(0) }
+      if ( Z0_S_WINTER_DOORxRainProtect.state == NULL ) { Z0_S_WINTER_DOORxRainProtect.postUpdate(1) }
+      if ( Z0_S_WINTER_DOORxCoolingAllowed.state == NULL ) { Z0_S_WINTER_DOORxCoolingAllowed.postUpdate(0) }
+      if ( Z0_S_WINTER_DOORxLastRunTime.state == NULL ) { Z0_S_WINTER_DOORxLastRunTime.postUpdate(new DateTimeType().toString) } // updating last run time on startup to allow all sensors startup and data transfer
+      if ( Z0_S_WINTER_DOORxArduinoID.state == NULL ) { Z0_S_WINTER_DOORxArduinoID.postUpdate(52) }
+      if ( Z0_S_WINTER_DOORxEngineID.state == NULL ) { Z0_S_WINTER_DOORxEngineID.postUpdate(1) }
+      // STARTUP SETTINGS WINTER WINDOW TO TERASA1
+      if ( Z0_S_WINTER_TERASA1xPlants.state == NULL ) { Z0_S_WINTER_TERASA1xPlants.postUpdate(1) }
+      if ( Z0_S_WINTER_TERASA1xDoorProtect.state == NULL ) { Z0_S_WINTER_TERASA1xDoorProtect.postUpdate(0) }
+      if ( Z0_S_WINTER_TERASA1xRainProtect.state == NULL ) { Z0_S_WINTER_TERASA1xRainProtect.postUpdate(1) }
+      if ( Z0_S_WINTER_TERASA1xCoolingAllowed.state == NULL ) { Z0_S_WINTER_TERASA1xCoolingAllowed.postUpdate(0) }
+      if ( Z0_S_WINTER_TERASA1xLastRunTime.state == NULL ) { Z0_S_WINTER_TERASA1xLastRunTime.postUpdate(new DateTimeType().toString) } // updating last run time on startup to allow all sensors startup and data transfer
+      if ( Z0_S_WINTER_TERASA1xArduinoID.state == NULL ) { Z0_S_WINTER_TERASA1xArduinoID.postUpdate(52) }
+      if ( Z0_S_WINTER_TERASA1xEngineID.state == NULL ) { Z0_S_WINTER_TERASA1xEngineID.postUpdate(2) }
+      // STARTUP SETTINGS WINTER WINDOW TO TERASA2
+      if ( Z0_S_WINTER_TERASA2xPlants.state == NULL ) { Z0_S_WINTER_TERASA2xPlants.postUpdate(1) }
+      if ( Z0_S_WINTER_TERASA2xDoorProtect.state == NULL ) { Z0_S_WINTER_TERASA2xDoorProtect.postUpdate(0) }
+      if ( Z0_S_WINTER_TERASA2xRainProtect.state == NULL ) { Z0_S_WINTER_TERASA2xRainProtect.postUpdate(1) }
+      if ( Z0_S_WINTER_TERASA2xCoolingAllowed.state == NULL ) { Z0_S_WINTER_TERASA2xCoolingAllowed.postUpdate(0) }
+      if ( Z0_S_WINTER_TERASA2xLastRunTime.state == NULL ) { Z0_S_WINTER_TERASA2xLastRunTime.postUpdate(new DateTimeType().toString) } // updating last run time on startup to allow all sensors startup and data transfer
+      if ( Z0_S_WINTER_TERASA2xArduinoID.state == NULL ) { Z0_S_WINTER_TERASA2xArduinoID.postUpdate(52) }
+      if ( Z0_S_WINTER_TERASA2xEngineID.state == NULL ) { Z0_S_WINTER_TERASA2xEngineID.postUpdate(3) }
+      // STARTUP SETTINGS WINTER WINDOW TO CHODNIK1
+      if ( Z0_S_WINTER_CHODNIK1xPlants.state == NULL ) { Z0_S_WINTER_CHODNIK1xPlants.postUpdate(1) }
+      if ( Z0_S_WINTER_CHODNIK1xDoorProtect.state == NULL ) { Z0_S_WINTER_CHODNIK1xDoorProtect.postUpdate(0) }
+      if ( Z0_S_WINTER_CHODNIK1xRainProtect.state == NULL ) { Z0_S_WINTER_CHODNIK1xRainProtect.postUpdate(1) }
+      if ( Z0_S_WINTER_CHODNIK1xCoolingAllowed.state == NULL ) { Z0_S_WINTER_CHODNIK1xCoolingAllowed.postUpdate(0) }
+      if ( Z0_S_WINTER_CHODNIK1xLastRunTime.state == NULL ) { Z0_S_WINTER_CHODNIK1xLastRunTime.postUpdate(new DateTimeType().toString) } // updating last run time on startup to allow all sensors startup and data transfer
+      if ( Z0_S_WINTER_CHODNIK1xArduinoID.state == NULL ) { Z0_S_WINTER_CHODNIK1xArduinoID.postUpdate(52) }
+      if ( Z0_S_WINTER_CHODNIK1xEngineID.state == NULL ) { Z0_S_WINTER_CHODNIK1xEngineID.postUpdate(4) }
+      if ( Z0_S_WINTER_CHODNIK1xAutoManual.state == NULL ) { Z0_S_WINTER_CHODNIK1xAutoManual.postUpdate(0) }
+      // STARTUP SETTINGS WINTER WINDOW TO CHODNIK2
+      if ( Z0_S_WINTER_CHODNIK2xPlants.state == NULL ) { Z0_S_WINTER_CHODNIK2xPlants.postUpdate(1) }
+      if ( Z0_S_WINTER_CHODNIK2xDoorProtect.state == NULL ) { Z0_S_WINTER_CHODNIK2xDoorProtect.postUpdate(0) }
+      if ( Z0_S_WINTER_CHODNIK2xRainProtect.state == NULL ) { Z0_S_WINTER_CHODNIK2xRainProtect.postUpdate(1) }
+      if ( Z0_S_WINTER_CHODNIK2xCoolingAllowed.state == NULL ) { Z0_S_WINTER_CHODNIK2xCoolingAllowed.postUpdate(0) }
+      if ( Z0_S_WINTER_CHODNIK2xLastRunTime.state == NULL ) { Z0_S_WINTER_CHODNIK2xLastRunTime.postUpdate(new DateTimeType().toString) } // updating last run time on startup to allow all sensors startup and data transfer
+      if ( Z0_S_WINTER_CHODNIK2xArduinoID.state == NULL ) { Z0_S_WINTER_CHODNIK2xArduinoID.postUpdate(52) }
+      if ( Z0_S_WINTER_CHODNIK2xEngineID.state == NULL ) { Z0_S_WINTER_CHODNIK2xEngineID.postUpdate(5) }
+      if ( Z0_S_WINTER_CHODNIK2xAutoManual.state == NULL ) { Z0_S_WINTER_CHODNIK2xAutoManual.postUpdate(0) }
+      // STARTUP SETTINGS MARTIN BIG
+      if ( Z1_S_MARTIN_BIGxPlants.state == NULL ) { Z1_S_MARTIN_BIGxPlants.postUpdate(1) }
+      if ( Z1_S_MARTIN_BIGxDoorProtect.state == NULL ) { Z1_S_MARTIN_BIGxDoorProtect.postUpdate(0) }
+      if ( Z1_S_MARTIN_BIGxRainProtect.state == NULL ) { Z1_S_MARTIN_BIGxRainProtect.postUpdate(1) }
+      if ( Z1_S_MARTIN_BIGxCoolingAllowed.state == NULL ) { Z1_S_MARTIN_BIGxCoolingAllowed.postUpdate(1) }
+      if ( Z1_S_MARTIN_BIGxLastRunTime.state == NULL ) { Z1_S_MARTIN_BIGxLastRunTime.postUpdate(new DateTimeType().toString) } // updating last run time on startup to allow all sensors startup and data transfer
+      if ( Z1_S_MARTIN_BIGxArduinoID.state == NULL ) { Z1_S_MARTIN_BIGxArduinoID.postUpdate(13) }
+      if ( Z1_S_MARTIN_BIGxEngineID.state == NULL ) { Z1_S_MARTIN_BIGxEngineID.postUpdate(1) }
+      logInfo ("STARTUP", "Startup finished...")
+      auto_runner_lock.unlock()
+      system_started = 1
+    }
 end
 
 rule "Write_Persistence"
   when
     Member of gPersistent changed
   then
-    if ( running_persistence_read == 0 ) {
-      try {
-        logInfo ("Rollershutter", "Writing persistence for:" + triggeringItem.name)
-        persistence_lock.lock()
-        PERSISTENCE_Args.sendCommand("-W -a "+triggeringItem.name+" -v "+triggeringItem.state)
-        PERSISTENCE.sendCommand(ON)
-        while (PERSISTENCE.state == ON) {
-          Thread::sleep (500)
-        }
-      } catch(Throwable t) { logInfo ("Rollershutter", "ERROR EXCEPTION IN write persistence") }
-      finally {
-          persistence_lock.unlock()
-      } //finally
+    if ( SystemStarted == 1) {
+      if ( running_persistence_read == 0 ) {
+        try {
+          logInfo ("Rollershutter", "Writing persistence for:" + triggeringItem.name)
+          persistence_lock.lock()
+          PERSISTENCE_Args.sendCommand("-W -a "+triggeringItem.name+" -v "+triggeringItem.state)
+          PERSISTENCE.sendCommand(ON)
+          while (PERSISTENCE.state == ON) {
+            Thread::sleep (500)
+          }
+        } catch(Throwable t) { logInfo ("Rollershutter", "ERROR EXCEPTION IN write persistence") }
+        finally {
+            persistence_lock.unlock()
+        } //finally
+      }
     }
 end
 
@@ -213,23 +187,25 @@ rule "Re-enable auto mode"
     //Item AUTO_RE_ENABLE changed from OFF to ON or Item AUTO_RE_ENABLE received command ON // Causes double triggering
     Item AUTO_RE_ENABLE changed to ON
  then
-    logInfo ("Rollershutter", "Re-Enable: started")
-    gAUTO_RE_ENABLE.getMembers.forEach [p | 
-      if ( ( p.state != NULL ) && ((p.state as Number) < 10) ) {
-        logInfo ("Rollershutter", "Re-Enable: Item " + p.name + " changed state from " + p.state as Number + " to " +((p.state as Number) + 10))
-        postUpdate (p.name.toString, ((p.state as Number) + 10).toString)
-      }
-      else {
-        if ( p.state != NULL ) {
-          logInfo ("Rollershutter", "Re-Enable: Item " + p.name + " state " + p.state as Number + " kept")
+    if ( SystemStarted == 1) {
+      logInfo ("Rollershutter", "Re-Enable: started")
+      gAUTO_RE_ENABLE.getMembers.forEach [p | 
+        if ( ( p.state != NULL ) && ((p.state as Number) < 10) ) {
+          logInfo ("Rollershutter", "Re-Enable: Item " + p.name + " changed state from " + p.state as Number + " to " +((p.state as Number) + 10))
+          postUpdate (p.name.toString, ((p.state as Number) + 10).toString)
         }
         else {
-          logInfo ("Rollershutter", "Re-Enable: Item " + p.name + " unchanged as state is NULL")
+          if ( p.state != NULL ) {
+            logInfo ("Rollershutter", "Re-Enable: Item " + p.name + " state " + p.state as Number + " kept")
+          }
+          else {
+            logInfo ("Rollershutter", "Re-Enable: Item " + p.name + " unchanged as state is NULL")
+          }
         }
-      }
-    ]
-    AUTO_RE_ENABLE.sendCommand(OFF)
-    logInfo ("Rollershutter", "Re-Enable: finished")
+      ]
+      AUTO_RE_ENABLE.sendCommand(OFF)
+      logInfo ("Rollershutter", "Re-Enable: finished")
+    }
 end
 
 rule "Timer_expired"
@@ -237,8 +213,9 @@ rule "Timer_expired"
     Item MAIN_TIMER_TRIGGER received command ON
   then
     logInfo ("Rollershutter", "Timer expired with:" + timer_queue)
-    var String local_item_name = null
-    MAIN_TIMER_TRIGGER.postUpdate(OFF)
+    if ( SystemStarted == 1) {
+      var String local_item_name = null
+      MAIN_TIMER_TRIGGER.postUpdate(OFF)
       try {
         timer_lock.lock()
         if (timer_queue !== null) { //queue present
@@ -265,41 +242,44 @@ rule "Timer_expired"
           timer_lock.unlock()
           logInfo ("Rollershutter", "Timer finished")
       } //finally
+    }
 end
 
 rule "direct_run_gZx_group"
   when
     Member of gZ_ALL received command
   then
-    try {
-      logInfo("Rollershutter", "Member " + triggeringItem.name + " received " + receivedCommand)
-      arduino_writer.lock()
-      val String split_part0 = triggeringItem.name.toString.split("x").get(0)
-      val String split_part1 = triggeringItem.name.toString.split("x").get(1)
-      val String split_part2 = triggeringItem.name.toString.split("x").get(2)
-      if (receivedCommand == DOWN) {
-        ARDUINO_SEND_Args.sendCommand(split_part1 + " " + split_part2 +" 1")
-        ARDUINO_SEND.sendCommand(ON)
-        postUpdate (split_part0 + "xLastRunDirection","1")
-        postUpdate (split_part0 + "xLastRunTime", new DateTimeType().toString)
+    if ( SystemStarted == 1) {
+      try {
+        logInfo("Rollershutter", "Member " + triggeringItem.name + " received " + receivedCommand)
+        arduino_writer.lock()
+        val String split_part0 = triggeringItem.name.toString.split("x").get(0)
+        val String split_part1 = triggeringItem.name.toString.split("x").get(1)
+        val String split_part2 = triggeringItem.name.toString.split("x").get(2)
+        if (receivedCommand == DOWN) {
+          ARDUINO_SEND_Args.sendCommand(split_part1 + " " + split_part2 +" 1")
+          ARDUINO_SEND.sendCommand(ON)
+          postUpdate (split_part0 + "xLastRunDirection","1")
+          postUpdate (split_part0 + "xLastRunTime", new DateTimeType().toString)
+        }
+        if (receivedCommand == UP) {
+  //        logInfo ("Rollershutter", "GOING UP " + split_part0 + "|" +  split_part0 as String)
+          ARDUINO_SEND_Args.sendCommand(split_part1 + " " + split_part2 +" 2")
+          ARDUINO_SEND.sendCommand(ON)
+          postUpdate (split_part0 + "xLastRunDirection","2")
+          postUpdate (split_part0 + "xLastRunTime", new DateTimeType().toString)
+        }
+        if (receivedCommand == STOP) {
+          ARDUINO_SEND_Args.sendCommand(split_part1 + " " + split_part2 +" 0")
+          ARDUINO_SEND.sendCommand(ON)
+          //postUpdate (split_part0 + "xLastRunDirection",0) //Commented out as for stop we keep last direction used before (important for automation recovery - if uncommented the automation will never pick up stopped run)
+          postUpdate (split_part0 + "xLastRunTime", new DateTimeType().toString)
+        }
+        logInfo("Rollershutter", "Member " + triggeringItem.name + " received " + receivedCommand + " translated to " + split_part1 + "+" + split_part2 )
+      }catch(Throwable t) { logInfo ("Rollershutter", "ERROR EXCEPTION IN direct run") }
+      finally {
+          arduino_writer.unlock()
       }
-      if (receivedCommand == UP) {
-//        logInfo ("Rollershutter", "GOING UP " + split_part0 + "|" +  split_part0 as String)
-        ARDUINO_SEND_Args.sendCommand(split_part1 + " " + split_part2 +" 2")
-        ARDUINO_SEND.sendCommand(ON)
-        postUpdate (split_part0 + "xLastRunDirection","2")
-        postUpdate (split_part0 + "xLastRunTime", new DateTimeType().toString)
-      }
-      if (receivedCommand == STOP) {
-        ARDUINO_SEND_Args.sendCommand(split_part1 + " " + split_part2 +" 0")
-        ARDUINO_SEND.sendCommand(ON)
-        //postUpdate (split_part0 + "xLastRunDirection",0) //Commented out as for stop we keep last direction used before (important for automation recovery - if uncommented the automation will never pick up stopped run)
-        postUpdate (split_part0 + "xLastRunTime", new DateTimeType().toString)
-      }
-      logInfo("Rollershutter", "Member " + triggeringItem.name + " received " + receivedCommand + " translated to " + split_part1 + "+" + split_part2 )
-    }catch(Throwable t) { logInfo ("Rollershutter", "ERROR EXCEPTION IN direct run") }
-    finally {
-        arduino_writer.unlock()
     }
 end
 
@@ -307,15 +287,17 @@ rule "Sensor triggers"
   when
     Member of gS_TRIGGER_ALL changed
   then
-    val String split_part0 = triggeringItem.name.toString.split("x").get(0)
-    val String local_tiggered_group_name = "g" + split_part0 + "xTRIGGER"
-    logInfo("Rollershutter", "Triggers group:" + local_tiggered_group_name )
-    val local_tiggered_group_item = ScriptServiceUtil.getItemRegistry.getItem(local_tiggered_group_name) as GroupItem
-    val tmp_group = local_tiggered_group_item.getMembers()
-    for ( tmp_item : tmp_group ) {
-      while ( (auto_runner_lock.isLocked()) || (auto_runner_lock.getQueueLength() > 0 )) { Thread::sleep (47) }
-      tmp_item.sendCommand (ON)
-      Thread::sleep (321)
+    if ( SystemStarted == 1) {
+      val String split_part0 = triggeringItem.name.toString.split("x").get(0)
+      val String local_tiggered_group_name = "g" + split_part0 + "xTRIGGER"
+      logInfo("Rollershutter", "Triggers group:" + local_tiggered_group_name )
+      val local_tiggered_group_item = ScriptServiceUtil.getItemRegistry.getItem(local_tiggered_group_name) as GroupItem
+      val tmp_group = local_tiggered_group_item.getMembers()
+      for ( tmp_item : tmp_group ) {
+        while ( (auto_runner_lock.isLocked()) || (auto_runner_lock.getQueueLength() > 0 )) { Thread::sleep (47) }
+        tmp_item.sendCommand (ON)
+        Thread::sleep (321)
+      }
     }
 // forEach was commented to allow loop with lock check
 //    local_tiggered_group_item.getMembers.forEach [i | i.sendCommand (ON)
@@ -327,12 +309,14 @@ rule "Day to night triggers"
     Item DAY_NIGHT changed from ON to OFF
   then 
     logInfo("Rollershutter", "Transition from day to night"  )
-//    gDAY_NIGHTxTRIGGER.getMembers.forEach [i | logInfo ("DEBUG", "DAY to NIGHT sending ON to:" + i.name.toString)]
-    val tmp_group = gDAY_NIGHTxTRIGGER.getMembers()
-    for ( tmp_item : tmp_group ) {
-      while ( (auto_runner_lock.isLocked()) || (auto_runner_lock.getQueueLength() > 0 )) { Thread::sleep (47) }
-      tmp_item.sendCommand (ON)
-      Thread::sleep (321)
+    if ( SystemStarted == 1) {
+  //    gDAY_NIGHTxTRIGGER.getMembers.forEach [i | logInfo ("DEBUG", "DAY to NIGHT sending ON to:" + i.name.toString)]
+      val tmp_group = gDAY_NIGHTxTRIGGER.getMembers()
+      for ( tmp_item : tmp_group ) {
+        while ( (auto_runner_lock.isLocked()) || (auto_runner_lock.getQueueLength() > 0 )) { Thread::sleep (47) }
+        tmp_item.sendCommand (ON)
+        Thread::sleep (321)
+      }
     }
 // forEach was commented to allow loop with lock check
 //    gDAY_NIGHTxTRIGGER.getMembers.forEach [i | i.sendCommand (ON)
@@ -345,12 +329,14 @@ rule "Night to day triggers"
     Item DAY_NIGHT changed from OFF to ON
   then 
     logInfo("Rollershutter", "Transition from night to day"  )
+    if ( SystemStarted == 1) {
 //    gNIGHT_TO_DAYxTRIGGER.getMembers.forEach [i | logInfo ("DEBUG", "NIGHT to DAYSending ON to:" + i.name.toString)]
-    val tmp_group = gNIGHT_TO_DAYxTRIGGER.getMembers()
-    for ( tmp_item : tmp_group ) {
-      while ( (auto_runner_lock.isLocked()) || (auto_runner_lock.getQueueLength() > 0 )) { Thread::sleep (47) }
-      tmp_item.sendCommand (ON)
-      Thread::sleep (321)
+      val tmp_group = gNIGHT_TO_DAYxTRIGGER.getMembers()
+      for ( tmp_item : tmp_group ) {
+        while ( (auto_runner_lock.isLocked()) || (auto_runner_lock.getQueueLength() > 0 )) { Thread::sleep (47) }
+        tmp_item.sendCommand (ON)
+        Thread::sleep (321)
+      }
     }
 // forEach was commented to allow loop with lock check
 //    gNIGHT_TO_DAYxTRIGGER.getMembers.forEach [i | i.sendCommand (ON) 
@@ -361,106 +347,108 @@ rule "Day to night re-calculation"
   when
     Member of gDAY_NIGHTxTRIGGER received command ON
   then
+    if ( SystemStarted == 1) {
 //    logInfo("DEBUG", "First line of code in South side re-calculation")
-    try {
-      auto_runner_lock.lock()
-      val String local_split_part0 = triggeringItem.name.toString.split("x").get(0)
-      val local_auto_manual = ScriptServiceUtil.getItemRegistry.getItem(local_split_part0 + "xAutoManual") as NumberItem
-      val local_auto_mode = ScriptServiceUtil.getItemRegistry.getItem(local_split_part0 + "xCoolingHeating") as NumberItem
-      val local_door_protect = ScriptServiceUtil.getItemRegistry.getItem(local_split_part0 + "xDoorProtect") as NumberItem
-      val local_rain_protect = ScriptServiceUtil.getItemRegistry.getItem(local_split_part0 + "xRainProtect") as NumberItem
-      val local_cooling_allowed = ScriptServiceUtil.getItemRegistry.getItem(local_split_part0 + "xCoolingAllowed") as NumberItem
-      val local_arduino_id = ScriptServiceUtil.getItemRegistry.getItem(local_split_part0 + "xArduinoID") as NumberItem
-      val local_engine_id = ScriptServiceUtil.getItemRegistry.getItem(local_split_part0 + "xEngineID") as NumberItem
-      val local_last_run_time = new DateTime(ScriptServiceUtil.getItemRegistry.getItem(local_split_part0 + "xLastRunTime").state.toString)
-      val local_last_run_direction = ScriptServiceUtil.getItemRegistry.getItem(local_split_part0 + "xLastRunDirection") as NumberItem
-      val local_RAIN = ScriptServiceUtil.getItemRegistry.getItem("S_rain_southffxRAIN") as NumberItem
-      var local_calculated_run_direction = 0 // We can safelly use 0 as run direction is never calculated to stop
-      var local_new_run_direction = 0 // We can safelly use 0 as run direction is never calculated to stop
-      var local_clean_chn = 0
-      // Check if we have all variables
-      logInfo("Rollershutter", "Day to night transition " + local_split_part0 + " received " + receivedCommand )
-      triggeringItem.postUpdate(OFF)
-      logInfo("DEBUG", "Values: AUTO_MANUAL:"+AUTO_MANUAL.state+" local_auto_manual:"+local_auto_manual.state+" AUTO_MODE:"+AUTO_MODE.state+" local_auto_mode:"+local_auto_mode.state+" HOME_AWAY:"+HOME_AWAY.state+" DAY_NIGHT:"+DAY_NIGHT.state+" local_RAIN:"+local_RAIN.state+" local_door_protect:"+local_door_protect.state+" local_rain_protect:"+local_rain_protect.state+" local_cooling_allowed:"+local_cooling_allowed.state+" local_last_run_time:"+local_last_run_time+" local_last_run_direction:"+local_last_run_direction.state)
-      if ( ((AUTO_MANUAL.state != NULL) || (local_auto_manual.state != NULL)) && ((AUTO_MODE.state != NULL) || (local_auto_mode.state != NULL)) && (HOME_AWAY.state != NULL) && (DAY_NIGHT.state != NULL) && (local_RAIN.state != NULL) && (local_door_protect.state != NULL) && (local_rain_protect.state != NULL) && (local_cooling_allowed.state != NULL) && (local_arduino_id.state != NULL) && (local_engine_id.state != NULL) ) {
-        if ( ((local_auto_manual.state == NULL) && (AUTO_MANUAL.state == ON)) || ((local_auto_manual.state != NULL) && (local_auto_manual.state as Number == 1)) || ((local_auto_manual.state != NULL) && (local_auto_manual.state as Number == 9) && (AUTO_MANUAL.state == ON))) { // Auto mode enabled
-          // Calculate direction
-          if (((local_auto_mode.state == NULL) || (local_auto_mode.state as Number == 9)) && (AUTO_MODE.state != NULL)) { local_clean_chn = AUTO_MODE.state as Number}
-          else { if ((local_auto_mode.state as Number == 0) || (local_auto_mode.state as Number == 1) || (local_auto_mode.state as Number == 2)) { local_clean_chn = local_auto_mode.state as Number} }
-          // No cooling allowed
-          if (local_cooling_allowed.state as Number == 0) { local_calculated_run_direction = 1 }
-          // Cooling allowed, but heating or neutral mode set
-          if ((local_cooling_allowed.state as Number == 1) && (local_clean_chn as Number != 2) ) { local_calculated_run_direction = 1 }
-           // Cooling allowed, cooling mode, dry
-          if ((local_cooling_allowed.state as Number == 1) && (local_clean_chn as Number == 2) && (local_RAIN.state as Number == 0) && (HOME_AWAY.state == OFF) ) { local_calculated_run_direction = 2 }
-          // Cooling allowed, cooling mode, raining
-          if ((local_cooling_allowed.state as Number == 1) && (local_clean_chn as Number == 2) && (local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 1) ) { local_calculated_run_direction = 1 }
-          if ((local_cooling_allowed.state as Number == 1) && (local_clean_chn as Number == 2) && (local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0) && (HOME_AWAY.state == OFF) ) { local_calculated_run_direction = 2 }
-          // Check calculated direction against last direction and against manual run
-          if (local_last_run_direction.state == NULL) { local_new_run_direction = local_calculated_run_direction }
-          else {  // Last direction is not NULL 
-            if (local_calculated_run_direction > 0) { // Calculation result in requested movement
-              if ((local_calculated_run_direction == 1) && ((local_last_run_direction.state as Number == 12) || (local_last_run_direction.state as Number == 2)) ) {local_new_run_direction = local_calculated_run_direction}
-              if ((local_calculated_run_direction == 2) && ((local_last_run_direction.state as Number == 11) || (local_last_run_direction.state as Number == 1)) ) {local_new_run_direction = local_calculated_run_direction}
-            } // Calculation result in requested movement
-          } // Last direction is not NULL 
-          // START MOTOR
-          logInfo("Rollershutter", local_split_part0+" last run was "+local_last_run_direction.state+" calculated run "+local_calculated_run_direction+" new run "+local_new_run_direction)
-          if (local_new_run_direction > 0) { // We have new run direction
-            val local_run_time = now.toString
-            val local_max_last_run_time = now.minusMinutes(default_lockout_time)
-            if (local_max_last_run_time.isBefore (local_last_run_time)) {
-//              logInfo("DEBUG", "Last run check failed queing "+local_last_run_time+"min item: "+local_split_part0)
-              //timer_queue = timer_queue + triggeringItem.name.toString + "-"
-              try {
-                timer_lock.lock ()
-                if (timer_queue.contains(triggeringItem.name.toString)) {
-                  logInfo("Rollershutter", "Item "+triggeringItem.name.toString+"/"+local_split_part0+" last run check failed " + local_last_run_time + " alredy PRESENT in queue "+timer_queue)
+      try {
+        auto_runner_lock.lock()
+        val String local_split_part0 = triggeringItem.name.toString.split("x").get(0)
+        val local_auto_manual = ScriptServiceUtil.getItemRegistry.getItem(local_split_part0 + "xAutoManual") as NumberItem
+        val local_auto_mode = ScriptServiceUtil.getItemRegistry.getItem(local_split_part0 + "xCoolingHeating") as NumberItem
+        val local_door_protect = ScriptServiceUtil.getItemRegistry.getItem(local_split_part0 + "xDoorProtect") as NumberItem
+        val local_rain_protect = ScriptServiceUtil.getItemRegistry.getItem(local_split_part0 + "xRainProtect") as NumberItem
+        val local_cooling_allowed = ScriptServiceUtil.getItemRegistry.getItem(local_split_part0 + "xCoolingAllowed") as NumberItem
+        val local_arduino_id = ScriptServiceUtil.getItemRegistry.getItem(local_split_part0 + "xArduinoID") as NumberItem
+        val local_engine_id = ScriptServiceUtil.getItemRegistry.getItem(local_split_part0 + "xEngineID") as NumberItem
+        val local_last_run_time = new DateTime(ScriptServiceUtil.getItemRegistry.getItem(local_split_part0 + "xLastRunTime").state.toString)
+        val local_last_run_direction = ScriptServiceUtil.getItemRegistry.getItem(local_split_part0 + "xLastRunDirection") as NumberItem
+        val local_RAIN = ScriptServiceUtil.getItemRegistry.getItem("S_rain_southffxRAIN") as NumberItem
+        var local_calculated_run_direction = 0 // We can safelly use 0 as run direction is never calculated to stop
+        var local_new_run_direction = 0 // We can safelly use 0 as run direction is never calculated to stop
+        var local_clean_chn = 0
+        // Check if we have all variables
+        logInfo("Rollershutter", "Day to night transition " + local_split_part0 + " received " + receivedCommand )
+        triggeringItem.postUpdate(OFF)
+        logInfo("DEBUG", "Values: AUTO_MANUAL:"+AUTO_MANUAL.state+" local_auto_manual:"+local_auto_manual.state+" AUTO_MODE:"+AUTO_MODE.state+" local_auto_mode:"+local_auto_mode.state+" HOME_AWAY:"+HOME_AWAY.state+" DAY_NIGHT:"+DAY_NIGHT.state+" local_RAIN:"+local_RAIN.state+" local_door_protect:"+local_door_protect.state+" local_rain_protect:"+local_rain_protect.state+" local_cooling_allowed:"+local_cooling_allowed.state+" local_last_run_time:"+local_last_run_time+" local_last_run_direction:"+local_last_run_direction.state)
+        if ( ((AUTO_MANUAL.state != NULL) || (local_auto_manual.state != NULL)) && ((AUTO_MODE.state != NULL) || (local_auto_mode.state != NULL)) && (HOME_AWAY.state != NULL) && (DAY_NIGHT.state != NULL) && (local_RAIN.state != NULL) && (local_door_protect.state != NULL) && (local_rain_protect.state != NULL) && (local_cooling_allowed.state != NULL) && (local_arduino_id.state != NULL) && (local_engine_id.state != NULL) ) {
+          if ( ((local_auto_manual.state == NULL) && (AUTO_MANUAL.state == ON)) || ((local_auto_manual.state != NULL) && (local_auto_manual.state as Number == 1)) || ((local_auto_manual.state != NULL) && (local_auto_manual.state as Number == 9) && (AUTO_MANUAL.state == ON))) { // Auto mode enabled
+            // Calculate direction
+            if (((local_auto_mode.state == NULL) || (local_auto_mode.state as Number == 9)) && (AUTO_MODE.state != NULL)) { local_clean_chn = AUTO_MODE.state as Number}
+            else { if ((local_auto_mode.state as Number == 0) || (local_auto_mode.state as Number == 1) || (local_auto_mode.state as Number == 2)) { local_clean_chn = local_auto_mode.state as Number} }
+            // No cooling allowed
+            if (local_cooling_allowed.state as Number == 0) { local_calculated_run_direction = 1 }
+            // Cooling allowed, but heating or neutral mode set
+            if ((local_cooling_allowed.state as Number == 1) && (local_clean_chn as Number != 2) ) { local_calculated_run_direction = 1 }
+             // Cooling allowed, cooling mode, dry
+            if ((local_cooling_allowed.state as Number == 1) && (local_clean_chn as Number == 2) && (local_RAIN.state as Number == 0) && (HOME_AWAY.state == OFF) ) { local_calculated_run_direction = 2 }
+            // Cooling allowed, cooling mode, raining
+            if ((local_cooling_allowed.state as Number == 1) && (local_clean_chn as Number == 2) && (local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 1) ) { local_calculated_run_direction = 1 }
+            if ((local_cooling_allowed.state as Number == 1) && (local_clean_chn as Number == 2) && (local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0) && (HOME_AWAY.state == OFF) ) { local_calculated_run_direction = 2 }
+            // Check calculated direction against last direction and against manual run
+            if (local_last_run_direction.state == NULL) { local_new_run_direction = local_calculated_run_direction }
+            else {  // Last direction is not NULL 
+              if (local_calculated_run_direction > 0) { // Calculation result in requested movement
+                if ((local_calculated_run_direction == 1) && ((local_last_run_direction.state as Number == 12) || (local_last_run_direction.state as Number == 2)) ) {local_new_run_direction = local_calculated_run_direction}
+                if ((local_calculated_run_direction == 2) && ((local_last_run_direction.state as Number == 11) || (local_last_run_direction.state as Number == 1)) ) {local_new_run_direction = local_calculated_run_direction}
+              } // Calculation result in requested movement
+            } // Last direction is not NULL 
+            // START MOTOR
+            logInfo("Rollershutter", local_split_part0+" last run was "+local_last_run_direction.state+" calculated run "+local_calculated_run_direction+" new run "+local_new_run_direction)
+            if (local_new_run_direction > 0) { // We have new run direction
+              val local_run_time = now.toString
+              val local_max_last_run_time = now.minusMinutes(default_lockout_time)
+              if (local_max_last_run_time.isBefore (local_last_run_time)) {
+  //              logInfo("DEBUG", "Last run check failed queing "+local_last_run_time+"min item: "+local_split_part0)
+                //timer_queue = timer_queue + triggeringItem.name.toString + "-"
+                try {
+                  timer_lock.lock ()
+                  if (timer_queue.contains(triggeringItem.name.toString)) {
+                    logInfo("Rollershutter", "Item "+triggeringItem.name.toString+"/"+local_split_part0+" last run check failed " + local_last_run_time + " alredy PRESENT in queue "+timer_queue)
+                  }
+                  else {
+                    timer_queue = timer_queue + triggeringItem.name.toString + "-"
+                    logInfo("Rollershutter", "Item "+triggeringItem.name.toString+"/"+local_split_part0+" last run check failed " + local_last_run_time + " ADDED to queue "+timer_queue)
+                  }
+                  if (timer_main === null) { 
+                    logInfo("Rollershutter", "Starting timer for "+default_lockout_time+"min item: "+local_split_part0)
+                    timer_main = createTimer(now.plusMinutes(default_lockout_time), [|
+                      MAIN_TIMER_TRIGGER.sendCommand(ON)
+                    ]) // Timer creation
+                  } // start timer
+                } // try block end
+                catch(Throwable t) {logInfo ("Rollershutter", "ERROR EXCEPTION IN day to night timer set") }
+                finally { timer_lock.unlock () }
+              } // Timeout not yet expired
+              else { // Execute command, there is no timeout issue, no trigger needed
+                try { // Try block for arduino writer lock
+  //                logInfo("DEBUG", "Executing Arduino "+local_arduino_id.state+" engine "+ local_engine_id.state + " direction "+local_new_run_direction+" time "+local_run_time)
+                  arduino_writer.lock()
+                  if (local_new_run_direction == 1) {
+                    ARDUINO_SEND_Args.sendCommand(local_arduino_id.state + " " + local_engine_id.state +" 1")
+                    ARDUINO_SEND.sendCommand(ON)
+                    postUpdate (local_split_part0 + "xLastRunDirection","11")
+                    postUpdate (local_split_part0 + "xLastRunTime", local_run_time)
+                    logInfo("Rollershutter", "Rollershutter " + local_split_part0 + " sent " + local_arduino_id.state + " " + local_engine_id.state +" 1" )
+                  }
+                  if (local_new_run_direction == 2) {
+                    ARDUINO_SEND_Args.sendCommand(local_arduino_id.state + " " + local_engine_id.state +" 2")
+                    ARDUINO_SEND.sendCommand(ON)
+                    postUpdate (local_split_part0 + "xLastRunDirection","12")
+                    postUpdate (local_split_part0 + "xLastRunTime", local_run_time)
+                    logInfo("Rollershutter", "Rollershutter " + local_split_part0 + " sent " + local_arduino_id.state + " " + local_engine_id.state +" 2" )
+                  }
+                }catch(Throwable t) {logInfo ("Rollershutter", "ERROR EXCEPTION IN day to night 2")}
+                finally {
+                    arduino_writer.unlock()
                 }
-                else {
-                  timer_queue = timer_queue + triggeringItem.name.toString + "-"
-                  logInfo("Rollershutter", "Item "+triggeringItem.name.toString+"/"+local_split_part0+" last run check failed " + local_last_run_time + " ADDED to queue "+timer_queue)
-                }
-                if (timer_main === null) { 
-                  logInfo("Rollershutter", "Starting timer for "+default_lockout_time+"min item: "+local_split_part0)
-                  timer_main = createTimer(now.plusMinutes(default_lockout_time), [|
-                    MAIN_TIMER_TRIGGER.sendCommand(ON)
-                  ]) // Timer creation
-                } // start timer
-              } // try block end
-              catch(Throwable t) {logInfo ("Rollershutter", "ERROR EXCEPTION IN day to night timer set") }
-              finally { timer_lock.unlock () }
-            } // Timeout not yet expired
-            else { // Execute command, there is no timeout issue, no trigger needed
-              try { // Try block for arduino writer lock
-//                logInfo("DEBUG", "Executing Arduino "+local_arduino_id.state+" engine "+ local_engine_id.state + " direction "+local_new_run_direction+" time "+local_run_time)
-                arduino_writer.lock()
-                if (local_new_run_direction == 1) {
-                  ARDUINO_SEND_Args.sendCommand(local_arduino_id.state + " " + local_engine_id.state +" 1")
-                  ARDUINO_SEND.sendCommand(ON)
-                  postUpdate (local_split_part0 + "xLastRunDirection","11")
-                  postUpdate (local_split_part0 + "xLastRunTime", local_run_time)
-                  logInfo("Rollershutter", "Rollershutter " + local_split_part0 + " sent " + local_arduino_id.state + " " + local_engine_id.state +" 1" )
-                }
-                if (local_new_run_direction == 2) {
-                  ARDUINO_SEND_Args.sendCommand(local_arduino_id.state + " " + local_engine_id.state +" 2")
-                  ARDUINO_SEND.sendCommand(ON)
-                  postUpdate (local_split_part0 + "xLastRunDirection","12")
-                  postUpdate (local_split_part0 + "xLastRunTime", local_run_time)
-                  logInfo("Rollershutter", "Rollershutter " + local_split_part0 + " sent " + local_arduino_id.state + " " + local_engine_id.state +" 2" )
-                }
-              }catch(Throwable t) {logInfo ("Rollershutter", "ERROR EXCEPTION IN day to night 2")}
-              finally {
-                  arduino_writer.unlock()
-              }
-            } // Execute command, there is no timeout issue, no trigger needed
-          } // We have new run direction
-        } // Auto mode enabled
-      } // All variables exists
-    }catch(Throwable t) { logInfo ("Rollershutter", "ERROR EXCEPTION IN day to night 1")}
-    finally {
-        auto_runner_lock.unlock()
-    } //finally
+              } // Execute command, there is no timeout issue, no trigger needed
+            } // We have new run direction
+          } // Auto mode enabled
+        } // All variables exists
+      }catch(Throwable t) { logInfo ("Rollershutter", "ERROR EXCEPTION IN day to night 1")}
+      finally {
+          auto_runner_lock.unlock()
+      } //finally
+    }
 end
 
 rule "South side re-calculation"
@@ -468,142 +456,144 @@ rule "South side re-calculation"
     Member of gS_light_southffxTRIGGER received command ON
   then
 //    logInfo("DEBUG", "First line of code in South side re-calculation")
-    try {
-      auto_runner_lock.lock()
-      val String local_split_part0 = triggeringItem.name.toString.split("x").get(0)
-      val local_auto_manual = ScriptServiceUtil.getItemRegistry.getItem(local_split_part0 + "xAutoManual") as NumberItem
-      val local_auto_mode = ScriptServiceUtil.getItemRegistry.getItem(local_split_part0 + "xCoolingHeating") as NumberItem
-      val local_plants = ScriptServiceUtil.getItemRegistry.getItem(local_split_part0 + "xPlants") as NumberItem
-      val local_door_protect = ScriptServiceUtil.getItemRegistry.getItem(local_split_part0 + "xDoorProtect") as NumberItem
-      val local_rain_protect = ScriptServiceUtil.getItemRegistry.getItem(local_split_part0 + "xRainProtect") as NumberItem
-      val local_cooling_allowed = ScriptServiceUtil.getItemRegistry.getItem(local_split_part0 + "xCoolingAllowed") as NumberItem
-      val local_arduino_id = ScriptServiceUtil.getItemRegistry.getItem(local_split_part0 + "xArduinoID") as NumberItem
-      val local_engine_id = ScriptServiceUtil.getItemRegistry.getItem(local_split_part0 + "xEngineID") as NumberItem
-      val local_last_run_time = new DateTime(ScriptServiceUtil.getItemRegistry.getItem(local_split_part0 + "xLastRunTime").state.toString)
-      val local_last_run_direction = ScriptServiceUtil.getItemRegistry.getItem(local_split_part0 + "xLastRunDirection") as NumberItem
-      val local_SLD = ScriptServiceUtil.getItemRegistry.getItem("S_light_southffxSLD") as NumberItem
-      val local_RAIN = ScriptServiceUtil.getItemRegistry.getItem("S_rain_southffxRAIN") as NumberItem
-      var local_calculated_run_direction = 0 // We can safelly use 0 as run direction is never calculated to stop
-      var local_new_run_direction = 0 // We can safelly use 0 as run direction is never calculated to stop
-      var local_clean_chn = 0
-      // Check if we have all variables
-      logInfo("Rollershutter", "SouthSide recalc " + local_split_part0 + " received " + receivedCommand )
-      triggeringItem.postUpdate(OFF)
-      logInfo("DEBUG", "Values: AUTO_MANUAL:"+AUTO_MANUAL.state+" local_auto_manual:"+local_auto_manual.state+" AUTO_MODE:"+AUTO_MODE.state+" local_auto_mode:"+local_auto_mode.state+" HOME_AWAY:"+HOME_AWAY.state+" DAY_NIGHT:"+DAY_NIGHT.state+" local_SLD:"+local_SLD.state+" local_RAIN:"+local_RAIN.state+" local_plants:"+local_plants.state+" local_door_protect:"+local_door_protect.state+" local_rain_protect:"+local_rain_protect.state+" local_cooling_allowed:"+local_cooling_allowed.state+" local_last_run_time:"+local_last_run_time+" local_last_run_direction:"+local_last_run_direction.state)
-      if ( ((AUTO_MANUAL.state != NULL) || (local_auto_manual.state != NULL)) && ((AUTO_MODE.state != NULL) || (local_auto_mode.state != NULL)) && (HOME_AWAY.state != NULL) && (DAY_NIGHT.state != NULL) && (local_SLD.state != NULL) && (local_RAIN.state != NULL) && (local_plants.state != NULL) && (local_door_protect.state != NULL) && (local_rain_protect.state != NULL) && (local_cooling_allowed.state != NULL) && (local_arduino_id.state != NULL) && (local_engine_id.state != NULL) ) {
-        if ( ((local_auto_manual.state == NULL) && (AUTO_MANUAL.state == ON)) || ((local_auto_manual.state != NULL) && (local_auto_manual.state as Number == 1)) || ((local_auto_manual.state != NULL) && (local_auto_manual.state as Number == 9) && (AUTO_MANUAL.state == ON))) { // Auto mode enabled
-          // Calculate direction
-          if (((local_auto_mode.state == NULL) || (local_auto_mode.state as Number == 9)) && (AUTO_MODE.state != NULL)) { local_clean_chn = AUTO_MODE.state as Number}
-          else { if ((local_auto_mode.state as Number == 0) || (local_auto_mode.state as Number == 1) || (local_auto_mode.state as Number == 2)) { local_clean_chn = local_auto_mode.state as Number} }
-          // Raining and rain protection activated
-          if ((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 1) && (local_door_protect.state as Number == 1) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 1 }
-          if ((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 1) && (local_door_protect.state as Number == 0) && (DAY_NIGHT.state == OFF) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 1 }
-          if ((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 1) && (local_door_protect.state as Number == 0) && (DAY_NIGHT.state == ON) ) { local_calculated_run_direction = 1 }
-          // dry or (Raining, no rain protection), dark, cooling not allowed
-          if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 2) && (local_cooling_allowed.state as Number == 0) && (local_door_protect.state as Number == 1) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 1 }
-          if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 2) && (local_cooling_allowed.state as Number == 0) && (local_door_protect.state as Number == 0) && (DAY_NIGHT.state == OFF) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 1 }
-          if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 2) && (local_cooling_allowed.state as Number == 0) && (local_door_protect.state as Number == 0) && (DAY_NIGHT.state == ON) ) { local_calculated_run_direction = 1 }
-          // dry or (Raining, no rain protection), dark, cooling allowed, heating or neutral set
-          if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 2) && (local_cooling_allowed.state as Number == 1) && ((local_clean_chn as Number == 0) || (local_clean_chn as Number == 1)) && (local_door_protect.state as Number == 1) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 1 }
-          if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 2) && (local_cooling_allowed.state as Number == 1) && ((local_clean_chn as Number == 0) || (local_clean_chn as Number == 1)) && (local_door_protect.state as Number == 0) && (DAY_NIGHT.state == OFF) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 1 }
-          if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 2) && (local_cooling_allowed.state as Number == 1) && ((local_clean_chn as Number == 0) || (local_clean_chn as Number == 1)) && (local_door_protect.state as Number == 0) && (DAY_NIGHT.state == ON) ) { local_calculated_run_direction = 1 }
-          // dry or (Raining, no rain protection), dark, cooling allowed, cooling set
-          if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 2) && (local_cooling_allowed.state as Number == 1) && (local_clean_chn as Number == 2) && (DAY_NIGHT.state == OFF) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 2 }
-          if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 2) && (local_cooling_allowed.state as Number == 1) && (local_clean_chn as Number == 2) && (DAY_NIGHT.state == ON) ) { local_calculated_run_direction = 2 }
-          // dry or (Raining, no rain protection), Light, neutral, home
-          if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 1) && (local_clean_chn as Number == 0) && (HOME_AWAY.state == OFF) && (DAY_NIGHT.state == ON) ) { local_calculated_run_direction = 2 }
-          // dry or (Raining, no rain protection), Light, neutral, away
-          if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 1) && (local_clean_chn as Number == 0) && (HOME_AWAY.state == ON) && (local_plants.state as Number == 1) ) { local_calculated_run_direction = 2 }
-          if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 1) && (local_clean_chn as Number == 0) && (HOME_AWAY.state == ON) && (local_plants.state as Number == 0) ) { local_calculated_run_direction = 1 }
-          // dry or (Raining, no rain protection), Light, cooling or heating
-          if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 1) && ((local_clean_chn as Number == 2) || (local_clean_chn as Number == 1)) && (local_plants.state as Number == 1) && (DAY_NIGHT.state == OFF) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 2 }
-          if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 1) && ((local_clean_chn as Number == 2) || (local_clean_chn as Number == 1)) && (local_plants.state as Number == 1) && (DAY_NIGHT.state == ON) ) { local_calculated_run_direction = 2 }
-          if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 1) && ((local_clean_chn as Number == 2) || (local_clean_chn as Number == 1)) && (local_plants.state as Number == 0)  && (local_door_protect.state as Number == 1) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 1 }
-          if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 1) && ((local_clean_chn as Number == 2) || (local_clean_chn as Number == 1)) && (local_plants.state as Number == 0)  && (local_door_protect.state as Number == 0) && (DAY_NIGHT.state == OFF) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 1 }
-          if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 1) && ((local_clean_chn as Number == 2) || (local_clean_chn as Number == 1)) && (local_plants.state as Number == 0)  && (local_door_protect.state as Number == 0) && (DAY_NIGHT.state == ON) ) { local_calculated_run_direction = 1 }
-          // dry or (Raining, no rain protection), Sun, neutral or heating
-          //logInfo("DEBUG", "TEST2.3.2:"+"local_RAIN="+local_RAIN.state+" local_rain_protect="+local_rain_protect.state+" local_RAIN="+local_RAIN.state+" local_SLD="+local_SLD.state+" local_clean_chn="+local_clean_chn+" HOME_AWAY="+HOME_AWAY.state+" DAY_NIGHT="+DAY_NIGHT.state+" local_calculated_run_direction="+local_calculated_run_direction+" local_stupid_variable"+local_stupid_variable+".")
-          if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 0) && ((local_clean_chn as Number == 2) || (local_clean_chn as Number == 0)) && (HOME_AWAY.state == OFF) && (DAY_NIGHT.state == ON) ) { local_calculated_run_direction = 2 }
-          if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 0) && ((local_clean_chn as Number == 2) || (local_clean_chn as Number == 0)) && (HOME_AWAY.state == ON) && (local_plants.state as Number == 1) ) { local_calculated_run_direction = 2 }
-          if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 0) && ((local_clean_chn as Number == 2) || (local_clean_chn as Number == 0)) && (HOME_AWAY.state == ON) && (local_plants.state as Number == 0) ) { local_calculated_run_direction = 1 }
-          // dry or (Raining, no rain protection), Sun, cooling
-          if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 0) && (local_clean_chn as Number == 1) && (local_door_protect.state as Number == 1) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 1 }
-          if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 0) && (local_clean_chn as Number == 1) && (local_door_protect.state as Number == 0) && (DAY_NIGHT.state == OFF) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 1 }
-          if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 0) && (local_clean_chn as Number == 1) && (local_door_protect.state as Number == 0) && (DAY_NIGHT.state == ON) ) { local_calculated_run_direction = 1 }
-          // Check calculated direction against last direction and against manual run
-          if (local_last_run_direction.state == NULL) { local_new_run_direction = local_calculated_run_direction }
-          else {  // Last direction is not NULL 
-            if (local_calculated_run_direction > 0) { // Calculation result in requested movement
-              if (local_calculated_run_direction == local_last_run_direction.state as Number) {
-                if (local_calculated_run_direction == 1) { postUpdate (local_split_part0 + "xLastRunDirection", "11") } // If automation wants to go the same direction as last manual action switch back to automation
-                if (local_calculated_run_direction == 2) { postUpdate (local_split_part0 + "xLastRunDirection", "12") } // If automation wants to go the same direction as last manual action switch back to automation
-              }
-              else {
-                if ((local_calculated_run_direction == 1) && (local_last_run_direction.state as Number == 12) ) {local_new_run_direction = local_calculated_run_direction}
-                if ((local_calculated_run_direction == 2) && (local_last_run_direction.state as Number == 11) ) {local_new_run_direction = local_calculated_run_direction}
-              }
-            } // Calculation result in requested movement
-          } // Last direction is not NULL 
-          // START MOTOR
-          logInfo("Rollershutter", local_split_part0+" last run was "+local_last_run_direction.state+" calculated run "+local_calculated_run_direction+" new run "+local_new_run_direction)
-          if (local_new_run_direction > 0) { // We have new run direction
-            val local_run_time = now.toString
-            val local_max_last_run_time = now.minusMinutes(default_lockout_time)
-            if (local_max_last_run_time.isBefore (local_last_run_time)) {
-//              logInfo("DEBUG", "Last run check failed queing "+local_last_run_time+"min item: "+local_split_part0)
-              try { //try block for timer
-                timer_lock.lock ()
-                if (timer_queue.contains(triggeringItem.name.toString)) {
-                  logInfo("Rollershutter", "Item "+triggeringItem.name.toString+"/"+local_split_part0+" last run check failed " + local_last_run_time + " alredy PRESENT in queue "+timer_queue)
-//                  logInfo("DEBUG", "Item "+triggeringItem.name.toString+" alredy PRESENT in queue "+timer_queue)
+    if ( SystemStarted == 1) {
+      try {
+        auto_runner_lock.lock()
+        val String local_split_part0 = triggeringItem.name.toString.split("x").get(0)
+        val local_auto_manual = ScriptServiceUtil.getItemRegistry.getItem(local_split_part0 + "xAutoManual") as NumberItem
+        val local_auto_mode = ScriptServiceUtil.getItemRegistry.getItem(local_split_part0 + "xCoolingHeating") as NumberItem
+        val local_plants = ScriptServiceUtil.getItemRegistry.getItem(local_split_part0 + "xPlants") as NumberItem
+        val local_door_protect = ScriptServiceUtil.getItemRegistry.getItem(local_split_part0 + "xDoorProtect") as NumberItem
+        val local_rain_protect = ScriptServiceUtil.getItemRegistry.getItem(local_split_part0 + "xRainProtect") as NumberItem
+        val local_cooling_allowed = ScriptServiceUtil.getItemRegistry.getItem(local_split_part0 + "xCoolingAllowed") as NumberItem
+        val local_arduino_id = ScriptServiceUtil.getItemRegistry.getItem(local_split_part0 + "xArduinoID") as NumberItem
+        val local_engine_id = ScriptServiceUtil.getItemRegistry.getItem(local_split_part0 + "xEngineID") as NumberItem
+        val local_last_run_time = new DateTime(ScriptServiceUtil.getItemRegistry.getItem(local_split_part0 + "xLastRunTime").state.toString)
+        val local_last_run_direction = ScriptServiceUtil.getItemRegistry.getItem(local_split_part0 + "xLastRunDirection") as NumberItem
+        val local_SLD = ScriptServiceUtil.getItemRegistry.getItem("S_light_southffxSLD") as NumberItem
+        val local_RAIN = ScriptServiceUtil.getItemRegistry.getItem("S_rain_southffxRAIN") as NumberItem
+        var local_calculated_run_direction = 0 // We can safelly use 0 as run direction is never calculated to stop
+        var local_new_run_direction = 0 // We can safelly use 0 as run direction is never calculated to stop
+        var local_clean_chn = 0
+        // Check if we have all variables
+        logInfo("Rollershutter", "SouthSide recalc " + local_split_part0 + " received " + receivedCommand )
+        triggeringItem.postUpdate(OFF)
+        logInfo("DEBUG", "Values: AUTO_MANUAL:"+AUTO_MANUAL.state+" local_auto_manual:"+local_auto_manual.state+" AUTO_MODE:"+AUTO_MODE.state+" local_auto_mode:"+local_auto_mode.state+" HOME_AWAY:"+HOME_AWAY.state+" DAY_NIGHT:"+DAY_NIGHT.state+" local_SLD:"+local_SLD.state+" local_RAIN:"+local_RAIN.state+" local_plants:"+local_plants.state+" local_door_protect:"+local_door_protect.state+" local_rain_protect:"+local_rain_protect.state+" local_cooling_allowed:"+local_cooling_allowed.state+" local_last_run_time:"+local_last_run_time+" local_last_run_direction:"+local_last_run_direction.state)
+        if ( ((AUTO_MANUAL.state != NULL) || (local_auto_manual.state != NULL)) && ((AUTO_MODE.state != NULL) || (local_auto_mode.state != NULL)) && (HOME_AWAY.state != NULL) && (DAY_NIGHT.state != NULL) && (local_SLD.state != NULL) && (local_RAIN.state != NULL) && (local_plants.state != NULL) && (local_door_protect.state != NULL) && (local_rain_protect.state != NULL) && (local_cooling_allowed.state != NULL) && (local_arduino_id.state != NULL) && (local_engine_id.state != NULL) ) {
+          if ( ((local_auto_manual.state == NULL) && (AUTO_MANUAL.state == ON)) || ((local_auto_manual.state != NULL) && (local_auto_manual.state as Number == 1)) || ((local_auto_manual.state != NULL) && (local_auto_manual.state as Number == 9) && (AUTO_MANUAL.state == ON))) { // Auto mode enabled
+            // Calculate direction
+            if (((local_auto_mode.state == NULL) || (local_auto_mode.state as Number == 9)) && (AUTO_MODE.state != NULL)) { local_clean_chn = AUTO_MODE.state as Number}
+            else { if ((local_auto_mode.state as Number == 0) || (local_auto_mode.state as Number == 1) || (local_auto_mode.state as Number == 2)) { local_clean_chn = local_auto_mode.state as Number} }
+            // Raining and rain protection activated
+            if ((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 1) && (local_door_protect.state as Number == 1) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 1 }
+            if ((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 1) && (local_door_protect.state as Number == 0) && (DAY_NIGHT.state == OFF) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 1 }
+            if ((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 1) && (local_door_protect.state as Number == 0) && (DAY_NIGHT.state == ON) ) { local_calculated_run_direction = 1 }
+            // dry or (Raining, no rain protection), dark, cooling not allowed
+            if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 2) && (local_cooling_allowed.state as Number == 0) && (local_door_protect.state as Number == 1) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 1 }
+            if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 2) && (local_cooling_allowed.state as Number == 0) && (local_door_protect.state as Number == 0) && (DAY_NIGHT.state == OFF) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 1 }
+            if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 2) && (local_cooling_allowed.state as Number == 0) && (local_door_protect.state as Number == 0) && (DAY_NIGHT.state == ON) ) { local_calculated_run_direction = 1 }
+            // dry or (Raining, no rain protection), dark, cooling allowed, heating or neutral set
+            if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 2) && (local_cooling_allowed.state as Number == 1) && ((local_clean_chn as Number == 0) || (local_clean_chn as Number == 1)) && (local_door_protect.state as Number == 1) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 1 }
+            if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 2) && (local_cooling_allowed.state as Number == 1) && ((local_clean_chn as Number == 0) || (local_clean_chn as Number == 1)) && (local_door_protect.state as Number == 0) && (DAY_NIGHT.state == OFF) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 1 }
+            if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 2) && (local_cooling_allowed.state as Number == 1) && ((local_clean_chn as Number == 0) || (local_clean_chn as Number == 1)) && (local_door_protect.state as Number == 0) && (DAY_NIGHT.state == ON) ) { local_calculated_run_direction = 1 }
+            // dry or (Raining, no rain protection), dark, cooling allowed, cooling set
+            if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 2) && (local_cooling_allowed.state as Number == 1) && (local_clean_chn as Number == 2) && (DAY_NIGHT.state == OFF) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 2 }
+            if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 2) && (local_cooling_allowed.state as Number == 1) && (local_clean_chn as Number == 2) && (DAY_NIGHT.state == ON) ) { local_calculated_run_direction = 2 }
+            // dry or (Raining, no rain protection), Light, neutral, home
+            if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 1) && (local_clean_chn as Number == 0) && (HOME_AWAY.state == OFF) && (DAY_NIGHT.state == ON) ) { local_calculated_run_direction = 2 }
+            // dry or (Raining, no rain protection), Light, neutral, away
+            if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 1) && (local_clean_chn as Number == 0) && (HOME_AWAY.state == ON) && (local_plants.state as Number == 1) ) { local_calculated_run_direction = 2 }
+            if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 1) && (local_clean_chn as Number == 0) && (HOME_AWAY.state == ON) && (local_plants.state as Number == 0) ) { local_calculated_run_direction = 1 }
+            // dry or (Raining, no rain protection), Light, cooling or heating
+            if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 1) && ((local_clean_chn as Number == 2) || (local_clean_chn as Number == 1)) && (local_plants.state as Number == 1) && (DAY_NIGHT.state == OFF) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 2 }
+            if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 1) && ((local_clean_chn as Number == 2) || (local_clean_chn as Number == 1)) && (local_plants.state as Number == 1) && (DAY_NIGHT.state == ON) ) { local_calculated_run_direction = 2 }
+            if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 1) && ((local_clean_chn as Number == 2) || (local_clean_chn as Number == 1)) && (local_plants.state as Number == 0)  && (local_door_protect.state as Number == 1) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 1 }
+            if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 1) && ((local_clean_chn as Number == 2) || (local_clean_chn as Number == 1)) && (local_plants.state as Number == 0)  && (local_door_protect.state as Number == 0) && (DAY_NIGHT.state == OFF) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 1 }
+            if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 1) && ((local_clean_chn as Number == 2) || (local_clean_chn as Number == 1)) && (local_plants.state as Number == 0)  && (local_door_protect.state as Number == 0) && (DAY_NIGHT.state == ON) ) { local_calculated_run_direction = 1 }
+            // dry or (Raining, no rain protection), Sun, neutral or heating
+            //logInfo("DEBUG", "TEST2.3.2:"+"local_RAIN="+local_RAIN.state+" local_rain_protect="+local_rain_protect.state+" local_RAIN="+local_RAIN.state+" local_SLD="+local_SLD.state+" local_clean_chn="+local_clean_chn+" HOME_AWAY="+HOME_AWAY.state+" DAY_NIGHT="+DAY_NIGHT.state+" local_calculated_run_direction="+local_calculated_run_direction+" local_stupid_variable"+local_stupid_variable+".")
+            if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 0) && ((local_clean_chn as Number == 2) || (local_clean_chn as Number == 0)) && (HOME_AWAY.state == OFF) && (DAY_NIGHT.state == ON) ) { local_calculated_run_direction = 2 }
+            if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 0) && ((local_clean_chn as Number == 2) || (local_clean_chn as Number == 0)) && (HOME_AWAY.state == ON) && (local_plants.state as Number == 1) ) { local_calculated_run_direction = 2 }
+            if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 0) && ((local_clean_chn as Number == 2) || (local_clean_chn as Number == 0)) && (HOME_AWAY.state == ON) && (local_plants.state as Number == 0) ) { local_calculated_run_direction = 1 }
+            // dry or (Raining, no rain protection), Sun, cooling
+            if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 0) && (local_clean_chn as Number == 1) && (local_door_protect.state as Number == 1) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 1 }
+            if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 0) && (local_clean_chn as Number == 1) && (local_door_protect.state as Number == 0) && (DAY_NIGHT.state == OFF) && (HOME_AWAY.state == ON) ) { local_calculated_run_direction = 1 }
+            if ((((local_RAIN.state as Number == 1) && (local_rain_protect.state as Number == 0)) || (local_RAIN.state as Number == 0)) && (local_SLD.state as Number == 0) && (local_clean_chn as Number == 1) && (local_door_protect.state as Number == 0) && (DAY_NIGHT.state == ON) ) { local_calculated_run_direction = 1 }
+            // Check calculated direction against last direction and against manual run
+            if (local_last_run_direction.state == NULL) { local_new_run_direction = local_calculated_run_direction }
+            else {  // Last direction is not NULL 
+              if (local_calculated_run_direction > 0) { // Calculation result in requested movement
+                if (local_calculated_run_direction == local_last_run_direction.state as Number) {
+                  if (local_calculated_run_direction == 1) { postUpdate (local_split_part0 + "xLastRunDirection", "11") } // If automation wants to go the same direction as last manual action switch back to automation
+                  if (local_calculated_run_direction == 2) { postUpdate (local_split_part0 + "xLastRunDirection", "12") } // If automation wants to go the same direction as last manual action switch back to automation
                 }
                 else {
-                  timer_queue = timer_queue + triggeringItem.name.toString + "-"
-                  logInfo("Rollershutter", "Item "+triggeringItem.name.toString+"/"+local_split_part0+" last run check failed " + local_last_run_time + " ADDED to queue "+timer_queue)
-//                  logInfo("DEBUG", "Item "+triggeringItem.name.toString+" ADDED to queue "+timer_queue)
+                  if ((local_calculated_run_direction == 1) && (local_last_run_direction.state as Number == 12) ) {local_new_run_direction = local_calculated_run_direction}
+                  if ((local_calculated_run_direction == 2) && (local_last_run_direction.state as Number == 11) ) {local_new_run_direction = local_calculated_run_direction}
                 }
-                if (timer_main === null) { 
-                  logInfo("Rollershutter", "Starting timer for "+default_lockout_time+"min item: "+local_split_part0)
-//                  logInfo("DEBUG", "Starting timer for "+default_lockout_time+"min item: "+local_split_part0)
-                  timer_main = createTimer(now.plusMinutes(default_lockout_time), [|
-                    MAIN_TIMER_TRIGGER.sendCommand(ON)
-                  ]) // Timer creation
-                } // start timer
-              } // end of timer try block
-              catch(Throwable t) {logInfo ("Rollershutter", "ERROR EXCEPTION IN south side timer set") }
-              finally { timer_lock.unlock () }
-            } // Timeout not yet expired
-            else { // Execute command, there is no timeout issue, no trigger needed
-              try { // Try block for arduino writer lock
-//                logInfo("DEBUG", "Executing Arduino "+local_arduino_id.state+" engine "+ local_engine_id.state + " direction "+local_new_run_direction+" time "+local_run_time)
-                arduino_writer.lock()
-                if (local_new_run_direction == 1) {
-                  ARDUINO_SEND_Args.sendCommand(local_arduino_id.state + " " + local_engine_id.state +" 1")
-                  ARDUINO_SEND.sendCommand(ON)
-                  postUpdate (local_split_part0 + "xLastRunDirection","11")
-                  postUpdate (local_split_part0 + "xLastRunTime", local_run_time)
-                  logInfo("Rollershutter", "Rollershutter " + local_split_part0 + " sent " + local_arduino_id.state + " " + local_engine_id.state +" 1" )
+              } // Calculation result in requested movement
+            } // Last direction is not NULL 
+            // START MOTOR
+            logInfo("Rollershutter", local_split_part0+" last run was "+local_last_run_direction.state+" calculated run "+local_calculated_run_direction+" new run "+local_new_run_direction)
+            if (local_new_run_direction > 0) { // We have new run direction
+              val local_run_time = now.toString
+              val local_max_last_run_time = now.minusMinutes(default_lockout_time)
+              if (local_max_last_run_time.isBefore (local_last_run_time)) {
+  //              logInfo("DEBUG", "Last run check failed queing "+local_last_run_time+"min item: "+local_split_part0)
+                try { //try block for timer
+                  timer_lock.lock ()
+                  if (timer_queue.contains(triggeringItem.name.toString)) {
+                    logInfo("Rollershutter", "Item "+triggeringItem.name.toString+"/"+local_split_part0+" last run check failed " + local_last_run_time + " alredy PRESENT in queue "+timer_queue)
+  //                  logInfo("DEBUG", "Item "+triggeringItem.name.toString+" alredy PRESENT in queue "+timer_queue)
+                  }
+                  else {
+                    timer_queue = timer_queue + triggeringItem.name.toString + "-"
+                    logInfo("Rollershutter", "Item "+triggeringItem.name.toString+"/"+local_split_part0+" last run check failed " + local_last_run_time + " ADDED to queue "+timer_queue)
+  //                  logInfo("DEBUG", "Item "+triggeringItem.name.toString+" ADDED to queue "+timer_queue)
+                  }
+                  if (timer_main === null) { 
+                    logInfo("Rollershutter", "Starting timer for "+default_lockout_time+"min item: "+local_split_part0)
+  //                  logInfo("DEBUG", "Starting timer for "+default_lockout_time+"min item: "+local_split_part0)
+                    timer_main = createTimer(now.plusMinutes(default_lockout_time), [|
+                      MAIN_TIMER_TRIGGER.sendCommand(ON)
+                    ]) // Timer creation
+                  } // start timer
+                } // end of timer try block
+                catch(Throwable t) {logInfo ("Rollershutter", "ERROR EXCEPTION IN south side timer set") }
+                finally { timer_lock.unlock () }
+              } // Timeout not yet expired
+              else { // Execute command, there is no timeout issue, no trigger needed
+                try { // Try block for arduino writer lock
+  //                logInfo("DEBUG", "Executing Arduino "+local_arduino_id.state+" engine "+ local_engine_id.state + " direction "+local_new_run_direction+" time "+local_run_time)
+                  arduino_writer.lock()
+                  if (local_new_run_direction == 1) {
+                    ARDUINO_SEND_Args.sendCommand(local_arduino_id.state + " " + local_engine_id.state +" 1")
+                    ARDUINO_SEND.sendCommand(ON)
+                    postUpdate (local_split_part0 + "xLastRunDirection","11")
+                    postUpdate (local_split_part0 + "xLastRunTime", local_run_time)
+                    logInfo("Rollershutter", "Rollershutter " + local_split_part0 + " sent " + local_arduino_id.state + " " + local_engine_id.state +" 1" )
+                  }
+                  if (local_new_run_direction == 2) {
+                    ARDUINO_SEND_Args.sendCommand(local_arduino_id.state + " " + local_engine_id.state +" 2")
+                    ARDUINO_SEND.sendCommand(ON)
+                    postUpdate (local_split_part0 + "xLastRunDirection","12")
+                    postUpdate (local_split_part0 + "xLastRunTime", local_run_time)
+                    logInfo("Rollershutter", "Rollershutter " + local_split_part0 + " sent " + local_arduino_id.state + " " + local_engine_id.state +" 2" )
+                  }
+                }catch(Throwable t) {logError ("Rollershutter", "rule South side re-calculation ArduinoWriter exception " + t.toString)}
+                finally {
+                    arduino_writer.unlock()
                 }
-                if (local_new_run_direction == 2) {
-                  ARDUINO_SEND_Args.sendCommand(local_arduino_id.state + " " + local_engine_id.state +" 2")
-                  ARDUINO_SEND.sendCommand(ON)
-                  postUpdate (local_split_part0 + "xLastRunDirection","12")
-                  postUpdate (local_split_part0 + "xLastRunTime", local_run_time)
-                  logInfo("Rollershutter", "Rollershutter " + local_split_part0 + " sent " + local_arduino_id.state + " " + local_engine_id.state +" 2" )
-                }
-              }catch(Throwable t) {logError ("Rollershutter", "rule South side re-calculation ArduinoWriter exception " + t.toString)}
-              finally {
-                  arduino_writer.unlock()
-              }
-            } // Execute command, there is no timeout issue, no trigger needed
-          } // We have new run direction
-        } // Auto mode enabled
-      } // All variables exists
-    }catch(Throwable t) {logError ("Rollershutter", "rule South side re-calculation exception " + t.getStackTrace() + " OTHER VERSION " + t.printStackTrace())}
-    finally {
-        auto_runner_lock.unlock()
-//        logInfo ("Rollershutter", "DEBUG finally in south side 2")
-    } //finally
+              } // Execute command, there is no timeout issue, no trigger needed
+            } // We have new run direction
+          } // Auto mode enabled
+        } // All variables exists
+      }catch(Throwable t) {logError ("Rollershutter", "rule South side re-calculation exception " + t.getStackTrace() + " OTHER VERSION " + t.printStackTrace())}
+      finally {
+          auto_runner_lock.unlock()
+  //        logInfo ("Rollershutter", "DEBUG finally in south side 2")
+      } //finally
+    }
 end
 
 rule "South SLD"
@@ -612,26 +602,28 @@ rule "South SLD"
     Item S_light_southffxINRAW changed
   then
     logInfo("Light", "Light changed input is " + S_light_southffxSLD.state + "/" + S_light_southffxINRAW.state)
-    if ( S_light_southffxDarkTreshold.state == NULL ) { S_light_southffxDarkTreshold.postUpdate(sensor_default_dark) }
-    if ( S_light_southffxSunshineTreshold.state == NULL ) { S_light_southffxSunshineTreshold.postUpdate(sensor_default_sunshine) }
-    if ( S_light_southffxHysteresis.state == NULL ) { S_light_southffxHysteresis.postUpdate(sensor_default_hyst) }
-    if ( S_light_southffxSLD.state == NULL ) {
-      if ( (S_light_southffxINRAW.state as Number) <= (S_light_southffxDarkTreshold.state as Number) ) { S_light_southffxSLD.sendCommand (2) }
-      else if ( (S_light_southffxINRAW.state as Number) <= (S_light_southffxSunshineTreshold.state as Number) ) { S_light_southffxSLD.sendCommand (1) }
-      else if ( (S_light_southffxINRAW.state as Number) > (S_light_southffxSunshineTreshold.state as Number) ) { S_light_southffxSLD.sendCommand (0) }
-    }
-    else {
-      if ( (S_light_southffxSLD.state as Number) == 0 ) {
+    if ( SystemStarted == 1) {
+      if ( S_light_southffxDarkTreshold.state == NULL ) { S_light_southffxDarkTreshold.postUpdate(sensor_default_dark) }
+      if ( S_light_southffxSunshineTreshold.state == NULL ) { S_light_southffxSunshineTreshold.postUpdate(sensor_default_sunshine) }
+      if ( S_light_southffxHysteresis.state == NULL ) { S_light_southffxHysteresis.postUpdate(sensor_default_hyst) }
+      if ( S_light_southffxSLD.state == NULL ) {
         if ( (S_light_southffxINRAW.state as Number) <= (S_light_southffxDarkTreshold.state as Number) ) { S_light_southffxSLD.sendCommand (2) }
-        else if ( (S_light_southffxINRAW.state as Number) <= ((S_light_southffxSunshineTreshold.state as Number) - (S_light_southffxHysteresis.state as Number)) ) { S_light_southffxSLD.sendCommand (1) }
+        else if ( (S_light_southffxINRAW.state as Number) <= (S_light_southffxSunshineTreshold.state as Number) ) { S_light_southffxSLD.sendCommand (1) }
+        else if ( (S_light_southffxINRAW.state as Number) > (S_light_southffxSunshineTreshold.state as Number) ) { S_light_southffxSLD.sendCommand (0) }
       }
-      if ( (S_light_southffxSLD.state as Number) == 1 ) {
-        if ( (S_light_southffxINRAW.state as Number) >= ((S_light_southffxSunshineTreshold.state as Number) + (S_light_southffxHysteresis.state as Number)) ) { S_light_southffxSLD.sendCommand (0) }
-        else if ( (S_light_southffxINRAW.state as Number) <= ((S_light_southffxDarkTreshold.state as Number) - (S_light_southffxHysteresis.state as Number)) ) { S_light_southffxSLD.sendCommand (2) }
-      }
-      if ( (S_light_southffxSLD.state as Number) == 2 ) {
-        if ( (S_light_southffxINRAW.state as Number) >= (S_light_southffxSunshineTreshold.state as Number) ) { S_light_southffxSLD.sendCommand (0) }
-        else if ( (S_light_southffxINRAW.state as Number) >= ((S_light_southffxDarkTreshold.state as Number) + (S_light_southffxHysteresis.state as Number)) ) { S_light_southffxSLD.sendCommand (1) }
+      else {
+        if ( (S_light_southffxSLD.state as Number) == 0 ) {
+          if ( (S_light_southffxINRAW.state as Number) <= (S_light_southffxDarkTreshold.state as Number) ) { S_light_southffxSLD.sendCommand (2) }
+          else if ( (S_light_southffxINRAW.state as Number) <= ((S_light_southffxSunshineTreshold.state as Number) - (S_light_southffxHysteresis.state as Number)) ) { S_light_southffxSLD.sendCommand (1) }
+        }
+        if ( (S_light_southffxSLD.state as Number) == 1 ) {
+          if ( (S_light_southffxINRAW.state as Number) >= ((S_light_southffxSunshineTreshold.state as Number) + (S_light_southffxHysteresis.state as Number)) ) { S_light_southffxSLD.sendCommand (0) }
+          else if ( (S_light_southffxINRAW.state as Number) <= ((S_light_southffxDarkTreshold.state as Number) - (S_light_southffxHysteresis.state as Number)) ) { S_light_southffxSLD.sendCommand (2) }
+        }
+        if ( (S_light_southffxSLD.state as Number) == 2 ) {
+          if ( (S_light_southffxINRAW.state as Number) >= (S_light_southffxSunshineTreshold.state as Number) ) { S_light_southffxSLD.sendCommand (0) }
+          else if ( (S_light_southffxINRAW.state as Number) >= ((S_light_southffxDarkTreshold.state as Number) + (S_light_southffxHysteresis.state as Number)) ) { S_light_southffxSLD.sendCommand (1) }
+        }
       }
     }
 end
@@ -641,8 +633,10 @@ rule "Day Night remote received"
   when
     Item S_daynight_remotexINRAW changed
   then
-    if ( (S_daynight_remotexINRAW.state as Number) == 0 ) { DAY_NIGHT.sendCommand (OFF) }
-    if ( (S_daynight_remotexINRAW.state as Number) == 1 ) { DAY_NIGHT.sendCommand (ON) }
+    if ( SystemStarted == 1) {
+      if ( (S_daynight_remotexINRAW.state as Number) == 0 ) { DAY_NIGHT.sendCommand (OFF) }
+      if ( (S_daynight_remotexINRAW.state as Number) == 1 ) { DAY_NIGHT.sendCommand (ON) }
+    }
 end
 
 rule "test run"
@@ -651,20 +645,22 @@ rule "test run"
   then
     var String local_timer_queue = "Z0_S_WINTER_TERASAxTRIGGER-Z1_S_PETER_BIGxTRIGGER-Z0_S_LIVING_WINDOWxTRIGGER-Z0_S_LIVING_DOORxTRIGGER-Z1_S_PETER_SMALLxTRIGGER-Z0_S_WINTER_DOORxTRIGGER-Z0_S_WINTER_CHODNIKxTRIGGER-Z0_S_WINTER_TERASAxTRIGGER-Z0_S_LIVING_WINDOWxTRIGGER-Z0_S_LIVING_DOORxTRIGGER-Z1_S_PETER_SMALLxTRIGGER-Z0_S_WINTER_DOORxTRIGGER-Z0_S_WINTER_CHODNIKxTRIGGER-Z0_S_WINTER_TERASAxTRIGGER-Z0_S_LIVING_WINDOWxTRIGGER-Z0_S_LIVING_DOORxTRIGGER-Z1_S_PETER_SMALLxTRIGGER-Z0_S_WINTER_DOORxTRIGGER-Z0_S_WINTER_CHODNIKxTRIGGER-Z0_S_WINTER_TERASAxTRIGGER-Z0_S_LIVING_WINDOWxTRIGGER-Z0_S_LIVING_DOORxTRIGGER-Z1_S_PETER_SMALLxTRIGGER-Z0_S_WINTER_DOORxTRIGGER-Z0_S_WINTER_CHODNIKxTRIGGER-Z0_S_WINTER_TERASAxTRIGGER-Z0_S_LIVING_WINDOWxTRIGGER-Z0_S_LIVING_DOORxTRIGGER-Z1_S_PETER_SMALLxTRIGGER-Z0_S_WINTER_DOORxTRIGGER-Z0_S_WINTER_CHODNIKxTRIGGER-Z0_S_WINTER_TERASAxTRIGGER-" 
     val String new_item_queue = "Z1_S_PETER_BIGxTESTxTRIGGER"
-    try {
-      logInfo("TEST", "Before return")
-      if (local_timer_queue.contains(new_item_queue)) {
-        logInfo("TEST", "Item >"+new_item_queue+"< alredy present in >"+local_timer_queue+"<")
+    if ( SystemStarted == 1) {
+      try {
+        logInfo("TEST", "Before return")
+        if (local_timer_queue.contains(new_item_queue)) {
+          logInfo("TEST", "Item >"+new_item_queue+"< alredy present in >"+local_timer_queue+"<")
+        }
+        else {
+          local_timer_queue = local_timer_queue + triggeringItem.name.toString + "-"
+          logInfo("TEST", "Item >"+new_item_queue+"< added to queue >"+local_timer_queue+"<")
+        }
+        //local_timer_queue = timer_queue + triggeringItem.name.toString + "-"
+        logInfo("TEST", "After return")
+      }catch(Throwable t) {logInfo ("Rollershutter", "ERROR EXCEPTION IN test run")}
+      finally {
+        logInfo("TEST", "Finally")
       }
-      else {
-        local_timer_queue = local_timer_queue + triggeringItem.name.toString + "-"
-        logInfo("TEST", "Item >"+new_item_queue+"< added to queue >"+local_timer_queue+"<")
-      }
-      //local_timer_queue = timer_queue + triggeringItem.name.toString + "-"
-      logInfo("TEST", "After return")
-    }catch(Throwable t) {logInfo ("Rollershutter", "ERROR EXCEPTION IN test run")}
-    finally {
-      logInfo("TEST", "Finally")
     }
 end
 
