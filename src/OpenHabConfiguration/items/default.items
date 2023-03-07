@@ -204,6 +204,9 @@ Switch PERSISTENCE { channel="exec:command:persistence:run" }
 String PERSISTENCE_Args { channel="exec:command:persistence:input" }
 String PERSISTENCE_Out { channel="exec:command:persistence:output" }
 
+// EXEC AVAILABILITY
+Switch ALL_EXEC_AVAILABLE "Swith to check if all exec things are online"
+
 // TEST SECTION
 Group gTEST "TEST GROUP" <error>
 

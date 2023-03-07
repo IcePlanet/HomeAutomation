@@ -18,24 +18,25 @@ var SystemStarted = 0
 
 rule "Startup"
   when 
+    Item ALL_EXEC_AVAILABLE changed to ON
 //    System reached start level 100
-    System reached start level 50
+//    System reached start level 50
 //    System started
   then
-    var ThingStatusInfo persistence_binding_status = getThingStatusInfo("exec:command:persistence")
-    var ThingStatusInfo arduino_binding_status = getThingStatusInfo("exec:command:arduino_send")
+//    var ThingStatusInfo persistence_binding_status = getThingStatusInfo("exec:command:persistence")
+//    var ThingStatusInfo arduino_binding_status = getThingStatusInfo("exec:command:arduino_send")
     logInfo ("STARTUP", "System Starting... home_away status: "+HOME_AWAY.state+" System Started value:"+SystemStarted)
     if (SystemStarted == 0) {
       auto_runner_lock.lock()
       Thread::sleep (4321) 
-      logInfo ("STARTUP", "Before binding wait loop: "+persistence_binding_status.getStatus().toString()+" arduino:"+arduino_binding_status.getStatus().toString())
-      while (((persistence_binding_status === null) || (persistence_binding_status.getStatus().toString() != "ONLINE")) || ((arduino_binding_status === null) || (arduino_binding_status.getStatus().toString() != "ONLINE"))) {
-        logInfo ("STARTUP", "Waiting for exec bindings to start, currently persistence: "+persistence_binding_status.getStatus().toString()+" arduino:"+arduino_binding_status.getStatus().toString())
-        Thread::sleep (1234)
-        persistence_binding_status = getThingStatusInfo("exec:command:persistence")
-        arduino_binding_status = getThingStatusInfo("exec:command:arduino_send")
-      }
-      logInfo ("STARTUP", "After binding wait loop "+persistence_binding_status.getStatus().toString()+" arduino:"+arduino_binding_status.getStatus().toString())
+//      logInfo ("STARTUP", "Before binding wait loop: "+persistence_binding_status.getStatus().toString()+" arduino:"+arduino_binding_status.getStatus().toString())
+//      while (((persistence_binding_status === null) || (persistence_binding_status.getStatus().toString() != "ONLINE")) || ((arduino_binding_status === null) || (arduino_binding_status.getStatus().toString() != "ONLINE"))) {
+//        logInfo ("STARTUP", "Waiting for exec bindings to start, currently persistence: "+persistence_binding_status.getStatus().toString()+" arduino:"+arduino_binding_status.getStatus().toString())
+//        Thread::sleep (1234)
+//        persistence_binding_status = getThingStatusInfo("exec:command:persistence")
+//        arduino_binding_status = getThingStatusInfo("exec:command:arduino_send")
+//      }
+//      logInfo ("STARTUP", "After binding wait loop "+persistence_binding_status.getStatus().toString()+" arduino:"+arduino_binding_status.getStatus().toString())
       running_persistence_read = 1
       gPersistent.getMembers.forEach [p | 
         logInfo ("Persistence", "Persistence refreshing "+p.name+" in state "+p.state.toString())
@@ -179,6 +180,33 @@ rule "Write_Persistence"
             persistence_lock.unlock()
         } //finally
       }
+    }
+end
+
+rule "All Exec Thing ONLINE"
+when
+    Thing "exec:command:persistence" changed to ONLINE or
+    Thing "exec:command:arduino_send" changed to ONLINE or
+    System reached start level 50
+then
+    if ((getThingStatusInfo(exec:command:arduino_send).toString == "ONLINE") && (getThingStatusInfo(exec:command:arduino_send).toString == "ONLINE")) {
+        ALL_EXEC_AVAILABLE.postUpdate(ON);
+    }
+    else {
+        ALL_EXEC_AVAILABLE.postUpdate(OFF);
+    }
+end
+
+rule "Exec Thing ONLINE"
+when
+    Thing "exec:command:persistence" changed or
+    Thing "exec:command:arduino_send" changed or
+then
+    if(getThingStatusInfo(exec:command:persistence).toString != "ONLINE") {
+        ALL_EXEC_AVAILABLE.postUpdate(OFF);
+    }
+    if(getThingStatusInfo(exec:command:arduino_send).toString != "ONLINE") {
+        ALL_EXEC_AVAILABLE.postUpdate(OFF);
     }
 end
 
